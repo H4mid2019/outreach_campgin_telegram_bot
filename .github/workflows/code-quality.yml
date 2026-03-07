@@ -1,0 +1,340 @@
+# ============================================================
+# code-quality.yml – GitHub Actions Workflow
+# Runs on every push / PR targeting the main branch
+# ============================================================
+# Jobs:
+#   1. import-check   – pyflakes + isort + pip install verify
+#   2. lint           – flake8 + pylint
+#   3. security       – bandit + trufflehog (secret scanning)
+# ============================================================
+
+name: Code Quality & Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+# ─────────────────────────────────────────────────────────────
+# JOB 1 · Import Checks
+# ─────────────────────────────────────────────────────────────
+jobs:
+  import-check:
+    name: "Import Checks"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install import-check tools
+        run: pip install pyflakes isort
+
+      # 1a – pyflakes: undefined names, unused / duplicate imports
+      - name: pyflakes – undefined & unused imports
+        run: |
+          echo "::group::pyflakes output"
+          python -m pyflakes $(find . -name "*.py" \
+            ! -path "./.venv/*" \
+            ! -path "./venv/*" \
+            ! -path "./__pycache__/*")
+          echo "::endgroup::"
+
+      # 1b – isort: import ordering
+      - name: isort – import order
+        run: |
+          python -m isort --check-only --diff \
+            $(find . -name "*.py" \
+              ! -path "./.venv/*" \
+              ! -path "./venv/*" \
+              ! -path "./__pycache__/*")
+
+      # 1c – verify every package in requirements.txt is importable
+      - name: requirements.txt – all packages importable
+        run: |
+          python - <<'EOF'
+          import sys, importlib
+
+          INSTALL_TO_IMPORT = {
+              "python-dotenv":  "dotenv",
+              "pillow":         "PIL",
+              "scikit-learn":   "sklearn",
+              "beautifulsoup4": "bs4",
+              "sqlalchemy":     "sqlalchemy",
+              "ddgs":           "duckduckgo_search",
+              "tavily-python":  "tavily",
+          }
+
+          failed = []
+          with open("requirements.txt") as f:
+              for line in f:
+                  pkg = line.split("=")[0].split("<")[0].split(">")[0].split(";")[0].strip()
+                  if not pkg or pkg.startswith("#"):
+                      continue
+                  import_name = INSTALL_TO_IMPORT.get(
+                      pkg.lower(), pkg.lower().replace("-", "_")
+                  )
+                  try:
+                      importlib.import_module(import_name)
+                  except ImportError:
+                      failed.append(f"{pkg} (import {import_name})")
+
+          if failed:
+              print("::error::Packages not importable: " + ", ".join(failed))
+              sys.exit(1)
+          else:
+              print("All packages importable ✓")
+          EOF
+
+# ─────────────────────────────────────────────────────────────
+# JOB 2 · Linting
+# ─────────────────────────────────────────────────────────────
+  lint:
+    name: "Linting"
+    runs-on: ubuntu-latest
+    needs: import-check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install linting tools
+        run: pip install flake8 flake8-bugbear flake8-annotations pylint
+
+      # 2a – flake8: PEP-8 + common bugs (bugbear plugin)
+      - name: flake8 – PEP-8 / syntax / bug patterns
+        run: |
+          python -m flake8 \
+            --max-line-length=120 \
+            --extend-ignore=E501,W503,ANN \
+            --statistics \
+            --format="::warning file=%(path)s,line=%(row)d,col=%(col)d::%(path)s:%(row)d:%(col)d: %(code)s %(text)s" \
+            $(find . -name "*.py" \
+              ! -path "./.venv/*" \
+              ! -path "./venv/*" \
+              ! -path "./__pycache__/*")
+
+      # 2b – pylint: deeper static analysis; fail if score < 7.0
+      - name: pylint – static analysis (score ≥ 7.0)
+        run: |
+          python -m pylint \
+            --disable=C0114,C0115,C0116,R0903,W0611 \
+            --max-line-length=120 \
+            --score=yes \
+            --output-format=colorized \
+            $(find . -name "*.py" \
+              ! -path "./.venv/*" \
+              ! -path "./venv/*" \
+              ! -path "./__pycache__/*") | tee pylint_output.txt
+
+          # Extract score and enforce threshold
+          python - <<'EOF'
+          import sys, re
+
+          with open("pylint_output.txt") as f:
+              content = f.read()
+
+          match = re.search(r"rated at ([\d\.\-]+)", content)
+          if not match:
+              print("::error::Could not parse pylint score")
+              sys.exit(1)
+
+          score = float(match.group(1))
+          print(f"pylint score: {score}/10")
+
+          if score < 7.0:
+              print(f"::error::pylint score {score} is below threshold 7.0")
+              sys.exit(1)
+          EOF
+
+# ─────────────────────────────────────────────────────────────
+# JOB 3 · Security
+# ─────────────────────────────────────────────────────────────
+  security:
+    name: "Security Checks"
+    runs-on: ubuntu-latest
+    needs: import-check
+
+    permissions:
+      contents: read
+      security-events: write   # needed for SARIF upload
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history needed for secret scanning
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install security tools
+        run: pip install bandit[toml]
+
+      # 3a – bandit: OWASP-style Python security checks
+      - name: bandit – security vulnerability scan
+        run: |
+          python -m bandit \
+            -r . \
+            --exclude "./.venv,./venv,./__pycache__" \
+            -ll \
+            -f json \
+            -o bandit-report.json || true
+
+          # Pretty-print and fail on HIGH severity
+          python - <<'EOF'
+          import json, sys
+
+          with open("bandit-report.json") as f:
+              report = json.load(f)
+
+          results = report.get("results", [])
+          high    = [r for r in results if r["issue_severity"] == "HIGH"]
+          medium  = [r for r in results if r["issue_severity"] == "MEDIUM"]
+
+          for r in results:
+              sev  = r["issue_severity"]
+              conf = r["issue_confidence"]
+              file = r["filename"]
+              line = r["line_number"]
+              text = r["issue_text"]
+              level = "error" if sev == "HIGH" else "warning"
+              print(f"::{level} file={file},line={line}::[bandit] {sev}/{conf} – {text}")
+
+          print(f"\nbandit summary: {len(high)} HIGH, {len(medium)} MEDIUM issues")
+
+          if high:
+              print("::error::bandit found HIGH severity issues – fix before merging.")
+              sys.exit(1)
+          EOF
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 14
+
+      # 3b – TruffleHog: deep secret / credential scanning across git history
+      - name: TruffleHog – secret scanning
+        uses: trufflesecurity/trufflehog@v3.88.18
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: >
+            --only-verified
+            --fail
+
+      # 3c – Regex scan for common hardcoded secret patterns
+      - name: Regex – hardcoded token / key patterns
+        run: |
+          python - <<'EOF'
+          import re, sys
+          from pathlib import Path
+
+          PATTERNS = {
+              "Telegram bot token":
+                  r"\b\d{8,12}:[A-Za-z0-9_-]{35}\b",
+              "Generic API key assignment":
+                  r"(?i)(api_key|apikey|api_secret|secret_key|access_token|auth_token|bot_token)\s*=\s*['\"][A-Za-z0-9_\-\.]{10,}['\"]",
+              "AWS access key":
+                  r"AKIA[0-9A-Z]{16}",
+              "OpenAI / OpenRouter key":
+                  r"sk-[A-Za-z0-9]{20,}",
+              "Hardcoded password":
+                  r"(?i)(password|passwd|pwd)\s*=\s*['\"][^'\"]{6,}['\"]",
+              "Bearer token in code":
+                  r"(?i)Bearer\s+[A-Za-z0-9\-_\.]{20,}",
+          }
+
+          EXCLUDE = {".venv", "venv", "__pycache__", ".git"}
+
+          findings = []
+          for py_file in Path(".").rglob("*.py"):
+              if any(part in EXCLUDE for part in py_file.parts):
+                  continue
+              content = py_file.read_text(errors="ignore")
+              for label, pattern in PATTERNS.items():
+                  for m in re.finditer(pattern, content):
+                      line_no = content[: m.start()].count("\n") + 1
+                      findings.append((str(py_file), line_no, label, m.group()))
+
+          for file, line, label, match in findings:
+              # Redact the actual value in CI logs
+              redacted = match[:6] + "***REDACTED***"
+              print(f"::error file={file},line={line}::[secret-scan] {label}: {redacted}")
+
+          if findings:
+              print(f"\n{len(findings)} potential secret(s) found – review and remove them.")
+              sys.exit(1)
+          else:
+              print("No hardcoded secrets detected ✓")
+          EOF
+
+      # 3d – Verify .env is in .gitignore and not tracked
+      - name: .env safety check
+        run: |
+          python - <<'EOF'
+          import sys
+          from pathlib import Path
+
+          errors = []
+
+          # Check .gitignore contains .env
+          gitignore = Path(".gitignore")
+          if gitignore.exists():
+              lines = gitignore.read_text().splitlines()
+              if not any(l.strip() in (".env", ".env*") for l in lines):
+                  errors.append(".env is NOT listed in .gitignore")
+          else:
+              errors.append(".gitignore file not found")
+
+          # Check .env is not committed
+          import subprocess
+          result = subprocess.run(
+              ["git", "ls-files", "--error-unmatch", ".env"],
+              capture_output=True
+          )
+          if result.returncode == 0:
+              errors.append(".env IS tracked by git – run: git rm --cached .env")
+
+          for e in errors:
+              print(f"::error::{e}")
+
+          if errors:
+              sys.exit(1)
+          else:
+              print(".env safety checks passed ✓")
+          EOF

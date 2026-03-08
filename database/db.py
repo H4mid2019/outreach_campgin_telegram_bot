@@ -39,6 +39,19 @@ class UserCsvRecord(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
+class UserCredits(Base):
+    """Tracks email generation credits for paid AI models.
+    Each credit = 1 email generation. Credits are purchased in packs of 25."""
+    __tablename__ = "user_credits"
+
+    chat_id: Mapped[int] = mapped_column(primary_key=True)
+    # Credits for anthropic/claude-sonnet-4.5  (€5 per 25 emails)
+    sonnet_credits: Mapped[int] = mapped_column(default=0)
+    # Credits for anthropic/claude-haiku-4.5   (€1 per 25 emails)
+    haiku_credits: Mapped[int] = mapped_column(default=0)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
 # Database engine and session
 engine = create_async_engine(
     "sqlite+aiosqlite:///email_bot.db",

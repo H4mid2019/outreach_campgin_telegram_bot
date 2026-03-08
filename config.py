@@ -8,7 +8,10 @@ class Config:
     OPENROUTER_API_KEY: str = os.getenv('OPENROUTER_API_KEY')
     ENCRYPTION_KEY: str = os.getenv('ENCRYPTION_KEY')
     TAVILY_API_KEY: str = os.getenv('TAVILY_API_KEY')
-    
+    # Telegram payment provider token (from BotFather → Payments).
+    # Get a test token from @BotFather for testing, or a live token from Stripe etc.
+    PAYMENT_PROVIDER_TOKEN: str = os.getenv('PAYMENT_PROVIDER_TOKEN', '')
+
     OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
     OPENROUTER_MODEL: str = 'x-ai/grok-4.1-fast'
     FALLBACK_MODEL: str = 'openai/gpt-4o'
@@ -22,6 +25,23 @@ class Config:
         "anthropic/claude-haiku-4.5",
         "nvidia/nemotron-3-nano-30b-a3b:free",
     ]
+
+    # Paid models — require credits (purchased via Telegram invoice).
+    # price_cents is in smallest EUR unit (1 EUR = 100 cents).
+    PAID_MODELS: dict = {
+        "anthropic/claude-sonnet-4.5": {
+            "label": "Claude Sonnet 4.5",
+            "price_euros": 5,
+            "price_cents": 500,       # €5.00
+            "emails_per_pack": 25,
+        },
+        "anthropic/claude-haiku-4.5": {
+            "label": "Claude Haiku 4.5",
+            "price_euros": 1,
+            "price_cents": 100,       # €1.00
+            "emails_per_pack": 25,
+        },
+    }
     
     @staticmethod
     def get_system_prompt(lang: str) -> str:

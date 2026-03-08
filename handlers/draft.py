@@ -20,6 +20,7 @@ from database.db import AsyncSessionLocal, UserCsvRecord
 from sqlalchemy import select, delete
 from config import Config
 from utils.user_settings import get_user_model
+from utils.credits import is_paid_model, get_credits, deduct_credit
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -90,19 +91,39 @@ async def generate_emails_for_records(
     sender_name: str,
     chat_id: int = None,
 ) -> List[Dict]:
-    """Generate email drafts for a list of records using campaign context and sender name."""
+    """Generate email drafts for a list of records using campaign context and sender name.
+
+    For paid models, 1 credit is deducted per successfully generated email.
+    If the user runs out of credits mid-batch, remaining emails get an error entry.
+    """
     ors = OpenRouterService()
     search_service = SearchService()
     generated = []
 
     # Resolve the user's chosen model once for the whole batch
     user_model = get_user_model(chat_id) if chat_id is not None else None
+    paid = chat_id is not None and user_model and is_paid_model(user_model)
 
     for rec in records:
         name = rec['name']
         info = rec['info']
         lang = rec['language']
         email_addr = rec['email']
+
+        # ── Credit gate for paid models ──────────────────────────────────
+        if paid:
+            deducted = await deduct_credit(chat_id, user_model)
+            if not deducted:
+                generated.append({
+                    'email_addr': email_addr,
+                    'subject': "❌ اعتبار ناکافی",
+                    'body': (
+                        "اعتبار شما برای این مدل تمام شده است.\n"
+                        "برای خرید بسته جدید /credits را بزنید."
+                    ),
+                })
+                continue
+        # ─────────────────────────────────────────────────────────────────
 
         async with AsyncSessionLocal() as session:
             profile = await search_service.get_recipient_profile(session, rec)
@@ -260,6 +281,35 @@ async def draft_receive_sender_name(message: Message, state: FSMContext):
             reply_markup=_back_keyboard()
         )
         return
+
+    chat_id = message.chat.id
+
+    # ── Credit pre-check for paid models ─────────────────────────────────
+    user_model = get_user_model(chat_id)
+    if is_paid_model(user_model):
+        balance = await get_credits(chat_id, user_model)
+        if balance == 0:
+            model_info = Config.PAID_MODELS[user_model]
+            builder = InlineKeyboardBuilder()
+            builder.button(
+                text=f"🛒 خرید {model_info['emails_per_pack']} ایمیل — €{model_info['price_euros']}",
+                callback_data=f"buy_credits:{user_model}",
+            )
+            builder.button(text="🔙 بازگشت به منو", callback_data="main_menu")
+            builder.adjust(1)
+            await message.answer(
+                f"💳 <b>اعتبار ناکافی</b>\n\n"
+                f"مدل انتخابی: <code>{user_model}</code>\n"
+                f"موجودی: <b>0 ایمیل</b>\n\n"
+                f"برای استفاده از این مدل، یک بسته "
+                f"{model_info['emails_per_pack']} ایمیل به قیمت "
+                f"€{model_info['price_euros']} بخرید.",
+                parse_mode="HTML",
+                reply_markup=builder.as_markup(),
+            )
+            await state.clear()
+            return
+    # ─────────────────────────────────────────────────────────────────────
 
     data = await state.get_data()
     records: List[Dict] = data['draft_records']

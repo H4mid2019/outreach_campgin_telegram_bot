@@ -16,7 +16,6 @@ class Config:
     AVAILABLE_MODELS: list = [
         "x-ai/grok-4.1-fast",
         "z-ai/glm-4.7-flash",
-        "openai/gpt-oss-120b:free",
         "openai/gpt-oss-120b",
         "meta-llama/llama-4-scout",
         "anthropic/claude-sonnet-4.5",

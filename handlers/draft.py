@@ -19,6 +19,7 @@ from services.search_service import SearchService
 from database.db import AsyncSessionLocal, UserCsvRecord
 from sqlalchemy import select, delete
 from config import Config
+from utils.user_settings import get_user_model
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -87,11 +88,15 @@ async def generate_emails_for_records(
     records: List[Dict],
     context: str,
     sender_name: str,
+    chat_id: int = None,
 ) -> List[Dict]:
     """Generate email drafts for a list of records using campaign context and sender name."""
     ors = OpenRouterService()
     search_service = SearchService()
     generated = []
+
+    # Resolve the user's chosen model once for the whole batch
+    user_model = get_user_model(chat_id) if chat_id is not None else None
 
     for rec in records:
         name = rec['name']
@@ -131,7 +136,7 @@ Use profile for hyper-personalization. Match language/style. Official clickbait 
 Generate a personalized email using the exact structure from system prompt. Use the sender name exactly in the closing signature, no placeholders."""
 
         try:
-            email_data = await ors.generate_email(system_prompt, user_prompt)
+            email_data = await ors.generate_email(system_prompt, user_prompt, model=user_model)
             subject = email_data.get('subject', 'Subject Missing')
             body = email_data.get('body', 'Body Missing')
         except Exception as e:
@@ -272,7 +277,7 @@ async def draft_receive_sender_name(message: Message, state: FSMContext):
 
     # Generate first page only
     first_page_records = records[:EMAILS_PER_PAGE]
-    first_page_emails = await generate_emails_for_records(first_page_records, context, sender_name)
+    first_page_emails = await generate_emails_for_records(first_page_records, context, sender_name, chat_id=message.chat.id)
 
     cached_emails = {0: first_page_emails}
     await state.update_data(draft_cached_emails=cached_emails)
@@ -334,7 +339,7 @@ async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
         end = start + EMAILS_PER_PAGE
         page_records = records[start:end]
 
-        page_emails = await generate_emails_for_records(page_records, context, sender_name)
+        page_emails = await generate_emails_for_records(page_records, context, sender_name, chat_id=callback.message.chat.id)
 
         cached_emails[page] = page_emails
         await state.update_data(draft_cached_emails=cached_emails)

@@ -163,8 +163,8 @@ async def process_sender_name(message: Message, state: FSMContext):
             async with AsyncSessionLocal() as db_session:
                 profile = await search_service.get_recipient_profile(db_session, rec)
             
-            # Generate with sender_name and profile
-            email_data = await email_gen.generate_personalized_email(context, name, info, lang, sender_name, profile)
+            # Generate with sender_name, profile, and per-user model
+            email_data = await email_gen.generate_personalized_email(context, name, info, lang, sender_name, profile, chat_id=chat_id)
             subject = email_data['subject']
             body = email_data['body']
             

@@ -10,8 +10,19 @@ class Config:
     TAVILY_API_KEY: str = os.getenv('TAVILY_API_KEY')
     
     OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
-    OPENROUTER_MODEL: str = 'anthropic/claude-3.5-sonnet'
+    OPENROUTER_MODEL: str = 'x-ai/grok-4.1-fast'
     FALLBACK_MODEL: str = 'openai/gpt-4o'
+
+    AVAILABLE_MODELS: list = [
+        "x-ai/grok-4.1-fast",
+        "z-ai/glm-4.7-flash",
+        "openai/gpt-oss-120b:free",
+        "openai/gpt-oss-120b",
+        "meta-llama/llama-4-scout",
+        "anthropic/claude-sonnet-4.5",
+        "anthropic/claude-haiku-4.5",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+    ]
     
     @staticmethod
     def get_system_prompt(lang: str) -> str:

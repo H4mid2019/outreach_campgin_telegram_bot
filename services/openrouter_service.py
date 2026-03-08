@@ -11,11 +11,18 @@ class OpenRouterService:
         self.model = Config.OPENROUTER_MODEL
         self.fallback_model = Config.FALLBACK_MODEL
 
-    async def generate_email(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
-        """Generate subject and body using OpenRouter"""
+    async def generate_email(self, system_prompt: str, user_prompt: str, model: str = None) -> Dict[str, Any]:
+        """Generate subject and body using OpenRouter.
+        
+        Args:
+            system_prompt: System-level instructions.
+            user_prompt: User message with recipient/campaign details.
+            model: Optional model override; falls back to instance default.
+        """
+        active_model = model if model else self.model
         try:
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=active_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

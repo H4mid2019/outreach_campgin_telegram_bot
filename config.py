@@ -10,8 +10,11 @@ class Config:
     TAVILY_API_KEY: str = os.getenv('TAVILY_API_KEY')
     
     OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
-    OPENROUTER_MODEL: str = 'x-ai/grok-4.1-fast'
+    OPENROUTER_MODEL: str = 'openai/gpt-oss-120b'
     FALLBACK_MODEL: str = 'openai/gpt-4o'
+
+    # Special key for model selection access
+    MODEL_ACCESS_KEY: str = os.getenv('MODEL_ACCESS_KEY', 'BlackCatsMeow')
 
     AVAILABLE_MODELS: list = [
         "x-ai/grok-4.1-fast",

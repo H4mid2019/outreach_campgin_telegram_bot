@@ -4,7 +4,10 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from keyboards.inline import get_start_keyboard, get_gmail_keyboard, get_disconnect_keyboard, get_model_keyboard
 from database.db import AsyncSessionLocal, User
-from utils.user_settings import get_user_model, set_user_model
+from utils.user_settings import (
+    get_user_model, set_user_model, is_authorized_for_model_selection,
+    authorize_user, is_pending_key, set_pending_key, validate_access_key
+)
 from config import Config
 import logging
 
@@ -86,6 +89,20 @@ async def show_model_selection(callback: CallbackQuery):
     """Show the list of available AI models for the user to choose from."""
     chat_id = callback.message.chat.id
     current_model = get_user_model(chat_id)
+    
+    # Check if user is authorized to change models
+    if not is_authorized_for_model_selection(chat_id):
+        await callback.message.edit_text(
+            "🔐 <b>دسترسی محدود</b>\n\n"
+            "برای تغییر مدل AI نیاز به کلید دسترسی دارید.\n"
+            "لطفاً کلید دسترسی خود را وارد کنید:\n\n"
+            "<i>برای لغو، /start را بزنید</i>",
+            parse_mode="HTML"
+        )
+        set_pending_key(chat_id, True)
+        await callback.answer("🔐 نیاز به کلید دسترسی", show_alert=True)
+        return
+    
     await callback.message.edit_text(
         "🤖 <b>انتخاب مدل هوش مصنوعی</b>\n\n"
         f"مدل فعلی: <code>{current_model}</code>\n\n"
@@ -102,6 +119,11 @@ async def handle_set_model(callback: CallbackQuery):
     chat_id = callback.message.chat.id
     chosen_model = callback.data.split("set_model:", 1)[1]
 
+    # Check if user is authorized
+    if not is_authorized_for_model_selection(chat_id):
+        await callback.answer("🔐 شما مجاز به تغییر مدل نیستید.", show_alert=True)
+        return
+
     if chosen_model not in Config.AVAILABLE_MODELS:
         await callback.answer("❌ مدل نامعتبر است.", show_alert=True)
         return
@@ -114,3 +136,44 @@ async def handle_set_model(callback: CallbackQuery):
         reply_markup=get_model_keyboard(chosen_model)
     )
     await callback.answer(f"✅ مدل تغییر یافت: {chosen_model}")
+
+
+@router.message(F.text)
+async def handle_access_key_input(message: Message):
+    """Handle access key input from users trying to access model selection."""
+    chat_id = message.chat.id
+    
+    # Check if user is waiting to enter their access key
+    if not is_pending_key(chat_id):
+        return
+    
+    # Validate the key
+    entered_key = message.text.strip()
+    
+    if validate_access_key(entered_key):
+        # Authorize the user
+        authorize_user(chat_id)
+        set_pending_key(chat_id, False)
+        
+        current_model = get_user_model(chat_id)
+        await message.answer(
+            "✅ <b>کلید دسترسی تایید شد!</b>\n\n"
+            "شما اکنون می‌توانید مدل AI را تغییر دهید.",
+            parse_mode="HTML"
+        )
+        # Show model selection
+        await message.answer(
+            "🤖 <b>انتخاب مدل هوش مصنوعی</b>\n\n"
+            f"مدل فعلی: <code>{current_model}</code>\n\n"
+            "یکی از مدل‌های زیر را انتخاب کنید:",
+            parse_mode="HTML",
+            reply_markup=get_model_keyboard(current_model)
+        )
+    else:
+        set_pending_key(chat_id, False)
+        await message.answer(
+            "❌ <b>کلید دسترسی نامعتبر است.</b>\n\n"
+            "دسترسی شما رد شد. برای تلاش مجدد روی 'تغییر مدل AI' کلیک کنید.",
+            parse_mode="HTML",
+            reply_markup=get_start_keyboard()
+        )

@@ -8,9 +8,6 @@ _user_models: Dict[int, str] = {}
 # Set of chat_ids authorized to change models
 _authorized_users: Set[int] = set()
 
-# Track users waiting to enter their access key
-_pending_key_users: Set[int] = set()
-
 
 def get_user_model(chat_id: int) -> str:
     """Return the selected model for a user, falling back to the default."""
@@ -35,19 +32,6 @@ def authorize_user(chat_id: int) -> None:
 def deauthorize_user(chat_id: int) -> None:
     """Remove a user's authorization to change models."""
     _authorized_users.discard(chat_id)
-
-
-def is_pending_key(chat_id: int) -> bool:
-    """Check if user is waiting to enter their access key."""
-    return chat_id in _pending_key_users
-
-
-def set_pending_key(chat_id: int, pending: bool = True) -> None:
-    """Set or clear user's pending key state."""
-    if pending:
-        _pending_key_users.add(chat_id)
-    else:
-        _pending_key_users.discard(chat_id)
 
 
 def validate_access_key(key: str) -> bool:

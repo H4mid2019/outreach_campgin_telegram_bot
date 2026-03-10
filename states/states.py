@@ -17,3 +17,6 @@ class GmailStates(StatesGroup):
 
 class UpdateCsvStates(StatesGroup):
     waiting_input = State()
+
+class AccessKeyStates(StatesGroup):
+    waiting_key = State()

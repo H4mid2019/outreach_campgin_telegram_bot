@@ -3,7 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram import F
 from states.states import DraftStates, UpdateCsvStates
-from keyboards.inline import get_start_keyboard
+from keyboards.inline import get_start_keyboard, get_preset_campaigns_keyboard
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from utils.csv_validator import validate_and_parse_csv
 import logging
@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 
 from services.openrouter_service import OpenRouterService
 from services.search_service import SearchService
-from database.db import AsyncSessionLocal, UserCsvRecord
+from database.db import AsyncSessionLocal, UserCsvRecord, get_all_campaigns, get_campaign_by_name
 from sqlalchemy import select, delete
 from config import Config
 from utils.user_settings import get_user_model
@@ -186,38 +186,68 @@ def build_draft_page_keyboard(page: int, total_records: int):
 
 
 # ─────────────────────────────────────────────
-# Step 1 — Entry: ask for campaign context
+# Step 0 — Entry: show preset campaigns (if any)
 # ─────────────────────────────────────────────
 
 @router.callback_query(lambda c: c.data == "draft")
 async def start_draft(callback: CallbackQuery, state: FSMContext):
-    """Entry point: load records (user-specific or sample), then ask for campaign context."""
-    chat_id = callback.message.chat.id
-    is_valid, msg, records = await load_records_for_user(chat_id)
+    """Entry point: show preset campaigns if available, otherwise go straight to manual."""
+    campaigns = await get_all_campaigns()
 
-    if not is_valid:
+    if campaigns:
+        # Show preset campaign selection
+        await state.set_state(DraftStates.waiting_preset_selection)
         await callback.message.edit_text(
-            f"❌ CSV Error: {msg}",
+            "📝 <b>ساخت پیش‌نویس ایمیل</b>\n\n"
+            "یک کمپین پیش‌تنظیم انتخاب کنید یا به صورت دستی ادامه دهید:",
             parse_mode="HTML",
+            reply_markup=get_preset_campaigns_keyboard(campaigns, mode="draft")
+        )
+    else:
+        # No presets — go straight to manual flow
+        await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+
+    await callback.answer()
+
+
+# ─────────────────────────────────────────────
+# Step 0a — User selects a preset campaign
+# ─────────────────────────────────────────────
+
+@router.callback_query(DraftStates.waiting_preset_selection, lambda c: c.data and c.data.startswith("select_campaign:draft:"))
+async def draft_select_preset_campaign(callback: CallbackQuery, state: FSMContext):
+    """User picked a preset campaign — load its email list and target."""
+    campaign_name = callback.data.split(":", 2)[2]
+    campaign = await get_campaign_by_name(campaign_name)
+
+    if not campaign:
+        await callback.message.edit_text(
+            "❌ این کمپین دیگر موجود نیست. لطفاً دوباره امتحان کنید.",
             reply_markup=_back_keyboard()
         )
+        await state.clear()
         await callback.answer()
         return
 
-    # Determine source label for the user
-    user_records = await get_user_records(chat_id)
-    source_label = "📂 لیست شخصی شما" if user_records else "📋 لیست پیش‌فرض (sample)"
+    records = campaign["email_list"]
+    context = campaign["target"]
 
-    # Store records in state and move to context step
-    await state.update_data(draft_records=records, draft_total=len(records))
-    await state.set_state(DraftStates.waiting_context)
+    await state.update_data(
+        draft_records=records,
+        draft_total=len(records),
+        draft_context=context,
+        draft_campaign_name=campaign_name,
+    )
+    await state.set_state(DraftStates.waiting_sender_name)
 
     await callback.message.edit_text(
-        f"📝 <b>ساخت پیش‌نویس ایمیل</b>\n\n"
-        f"{source_label} — {len(records)} رکورد بارگذاری شد.\n\n"
-        f"💬 <b>زمینه / هدف کمپین را بنویسید:</b>\n"
-        f"مثال: درخواست حمایت برای طرح X، لحن رسمی\n"
-        f"Example: Invite to political summit, formal tone",
+        f"✅ <b>کمپین انتخاب شد: {campaign_name}</b>\n"
+        f"📝 {campaign['description']}\n"
+        f"🎯 هدف: <i>{context[:100]}{'...' if len(context) > 100 else ''}</i>\n"
+        f"👥 {len(records)} ایمیل آماده\n\n"
+        "👤 <b>نام فرستنده را وارد کنید:</b>\n"
+        "این نام در انتهای ایمیل‌ها قرار می‌گیرد.\n"
+        "مثال: علی احمدی یا John Doe",
         parse_mode="HTML",
         reply_markup=_back_keyboard()
     )
@@ -225,7 +255,56 @@ async def start_draft(callback: CallbackQuery, state: FSMContext):
 
 
 # ─────────────────────────────────────────────
-# Step 2 — Receive campaign context, ask sender name
+# Step 0b — User chooses manual entry (no preset)
+# ─────────────────────────────────────────────
+
+@router.callback_query(DraftStates.waiting_preset_selection, lambda c: c.data == "campaign_manual:draft")
+async def draft_choose_manual(callback: CallbackQuery, state: FSMContext):
+    """User chose manual entry — load their CSV and ask for context."""
+    await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "campaign_manual:draft")
+async def draft_choose_manual_fallback(callback: CallbackQuery, state: FSMContext):
+    """Fallback for manual entry outside preset selection state."""
+    await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+    await callback.answer()
+
+
+async def _start_draft_manual(message, state: FSMContext, chat_id: int, edit: bool = False):
+    """Load user's CSV (or sample) and prompt for campaign context."""
+    is_valid, msg, records = await load_records_for_user(chat_id)
+
+    if not is_valid:
+        text = f"❌ CSV Error: {msg}"
+        if edit:
+            await message.edit_text(text, parse_mode="HTML", reply_markup=_back_keyboard())
+        else:
+            await message.answer(text, parse_mode="HTML", reply_markup=_back_keyboard())
+        return
+
+    user_records = await get_user_records(chat_id)
+    source_label = "📂 لیست شخصی شما" if user_records else "📋 لیست پیش‌فرض (sample)"
+
+    await state.update_data(draft_records=records, draft_total=len(records))
+    await state.set_state(DraftStates.waiting_context)
+
+    text = (
+        f"📝 <b>ساخت پیش‌نویس ایمیل</b>\n\n"
+        f"{source_label} — {len(records)} رکورد بارگذاری شد.\n\n"
+        f"💬 <b>زمینه / هدف کمپین را بنویسید:</b>\n"
+        f"مثال: درخواست حمایت برای طرح X، لحن رسمی\n"
+        f"Example: Invite to political summit, formal tone"
+    )
+    if edit:
+        await message.edit_text(text, parse_mode="HTML", reply_markup=_back_keyboard())
+    else:
+        await message.answer(text, parse_mode="HTML", reply_markup=_back_keyboard())
+
+
+# ─────────────────────────────────────────────
+# Step 1 — Receive campaign context (manual mode only), ask sender name
 # ─────────────────────────────────────────────
 
 @router.message(DraftStates.waiting_context)
@@ -248,7 +327,7 @@ async def draft_receive_context(message: Message, state: FSMContext):
 
 
 # ─────────────────────────────────────────────
-# Step 3 — Receive sender name, generate first page
+# Step 2 — Receive sender name, generate first page
 # ─────────────────────────────────────────────
 
 @router.message(DraftStates.waiting_sender_name)

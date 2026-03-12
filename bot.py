@@ -5,7 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from config import Config
-from handlers import common, draft, autosend, oauth
+from handlers import common, draft, autosend, oauth, campaigns
 from database.db import init_db
 
 # Logging
@@ -28,6 +28,7 @@ class BotApp:
         self.dp = Dispatcher(storage=MemoryStorage())
         
         # Include routers
+        self.dp.include_router(campaigns.router)  # campaigns first — key auth states priority
         self.dp.include_router(common.router)
         self.dp.include_router(draft.router)
         self.dp.include_router(autosend.router)

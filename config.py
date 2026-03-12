@@ -16,6 +16,9 @@ class Config:
     # Special key for model selection access
     MODEL_ACCESS_KEY: str = os.getenv('MODEL_ACCESS_KEY', 'BlackCatsMeow')
 
+    # Key required to create/update/delete preset campaigns
+    CAMPAIGN_ACCESS_KEY: str = os.getenv('CAMPAIGN_ACCESS_KEY', 'CampaignAdmin2024')
+
     AVAILABLE_MODELS: list = [
         "x-ai/grok-4.1-fast",
         "z-ai/glm-4.7-flash",

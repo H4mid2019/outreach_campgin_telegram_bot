@@ -24,8 +24,17 @@ async def validate_and_parse_csv(file_path: str) -> Tuple[bool, str, List[Dict]]
         if len(df) > 300:
             return False, "تعداد ردیف‌ها بیش از 300 است", []
         
+        def normalize_email(email: str) -> str:
+            """Normalize IDN (internationalized) email domains to ASCII punycode."""
+            try:
+                local, domain = str(email).rsplit('@', 1)
+                ascii_domain = domain.encode('idna').decode('ascii')
+                return f"{local}@{ascii_domain}"
+            except (UnicodeError, ValueError):
+                return str(email)
+
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        invalid_emails = df[~df['email'].str.match(email_regex, na=False)]['email'].tolist()
+        invalid_emails = df[~df['email'].apply(lambda e: bool(re.match(email_regex, normalize_email(e))) if pd.notna(e) else False)]['email'].tolist()
         if invalid_emails:
             return False, f"ایمیل‌های نامعتبر: {invalid_emails[:5]}...", []
         

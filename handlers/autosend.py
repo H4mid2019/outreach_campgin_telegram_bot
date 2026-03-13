@@ -17,10 +17,14 @@ import tempfile
 import asyncio
 import random
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+# Concurrency limits
+_PROFILE_SEMAPHORE = asyncio.Semaphore(5)   # max 5 concurrent web searches
+_GENERATE_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent LLM calls
 
 
 def _back_keyboard():
@@ -215,7 +219,7 @@ async def process_autosend_context(message: Message, state: FSMContext):
 
 
 # ─────────────────────────────────────────────
-# Step 2 — Receive sender name & send emails
+# Step 2 — Receive sender name & launch campaign
 # ─────────────────────────────────────────────
 
 @router.message(AutosendStates.waiting_sender_name)
@@ -240,40 +244,127 @@ async def process_sender_name(message: Message, state: FSMContext):
         gmail_email = user.gmail_email
         tokens_encrypted = user.gmail_tokens
 
+    campaign_label = data.get("campaign_name", "دستی")
+
+    # ── Acknowledge immediately so the handler returns and other users are served ──
+    await message.answer(
+        f"🚀 <b>کمپین در حال اجرا در پس‌زمینه است...</b>\n"
+        f"📌 کمپین: <b>{campaign_label}</b>\n"
+        f"👥 تعداد: <b>{len(records)}</b> ایمیل\n\n"
+        f"⚡ پروفایل‌ها و ایمیل‌ها به‌صورت موازی آماده می‌شوند.\n"
+        f"📊 گزارش نهایی بعد از اتمام ارسال می‌رسد.",
+        parse_mode="HTML"
+    )
+    await state.clear()  # free the FSM immediately
+
+    # ── Launch the campaign as a background task ──
+    asyncio.create_task(
+        _run_campaign(
+            message=message,
+            records=records,
+            context=context,
+            sender_name=sender_name,
+            chat_id=chat_id,
+            tokens_encrypted=tokens_encrypted,
+            gmail_email=gmail_email,
+            campaign_label=campaign_label,
+        )
+    )
+
+
+# ─────────────────────────────────────────────
+# Background campaign runner (non-blocking)
+# ─────────────────────────────────────────────
+
+async def _fetch_profile_for_rec(search_service: SearchService, rec: Dict) -> Dict:
+    """Fetch one recipient profile with semaphore limiting."""
+    async with _PROFILE_SEMAPHORE:
+        try:
+            async with AsyncSessionLocal() as db_session:
+                return await search_service.get_recipient_profile(db_session, rec)
+        except Exception as e:
+            logger.error(f"Profile fetch failed for {rec.get('email', '?')}: {e}")
+            return {}
+
+
+async def _generate_email_for_rec(
+    email_gen: EmailGenerator,
+    context: str,
+    rec: Dict,
+    sender_name: str,
+    profile: Dict,
+    chat_id: int,
+) -> Optional[Dict]:
+    """Generate one email with semaphore limiting."""
+    async with _GENERATE_SEMAPHORE:
+        try:
+            return await email_gen.generate_personalized_email(
+                context,
+                rec['name'],
+                rec['info'],
+                rec['language'],
+                sender_name,
+                profile,
+                chat_id=chat_id,
+            )
+        except Exception as e:
+            logger.error(f"Email generation failed for {rec.get('email', '?')}: {e}")
+            return None
+
+
+async def _run_campaign(
+    message: Message,
+    records: List[Dict],
+    context: str,
+    sender_name: str,
+    chat_id: int,
+    tokens_encrypted: str,
+    gmail_email: str,
+    campaign_label: str,
+):
+    """
+    Runs the full campaign in the background:
+      Phase 1 — Fetch all profiles concurrently (semaphore=5)
+      Phase 2 — Generate all emails concurrently (semaphore=5)
+      Phase 3 — Send emails sequentially with delays (Gmail limits)
+    """
     email_gen = EmailGenerator()
     gmail_svc = GmailService()
     search_service = SearchService()
+    total = len(records)
 
-    campaign_label = data.get("campaign_name", "دستی")
-    await message.answer(
-        f"🚀 <b>شروع ارسال...</b>\n"
-        f"📌 کمپین: <b>{campaign_label}</b>\n"
-        f"👥 تعداد: <b>{len(records)}</b> ایمیل\n"
-        f"⏳ لطفاً صبر کنید (تأخیر بین ایمیل‌ها + research).",
-        parse_mode="HTML"
-    )
+    # ── Phase 1: Concurrent profile fetching ──────────────────────────
+    await message.answer(f"🔍 <b>فاز ۱:</b> دریافت پروفایل‌های {total} گیرنده به‌صورت موازی...", parse_mode="HTML")
 
+    profile_tasks = [_fetch_profile_for_rec(search_service, rec) for rec in records]
+    profiles = await asyncio.gather(*profile_tasks)
+
+    await message.answer(f"✅ <b>فاز ۱ تمام شد.</b> {total} پروفایل دریافت شد.\n⚙️ <b>فاز ۲:</b> تولید ایمیل‌ها به‌صورت موازی...", parse_mode="HTML")
+
+    # ── Phase 2: Concurrent email generation ──────────────────────────
+    gen_tasks = [
+        _generate_email_for_rec(email_gen, context, rec, sender_name, profile, chat_id)
+        for rec, profile in zip(records, profiles)
+    ]
+    email_data_list = await asyncio.gather(*gen_tasks)
+
+    await message.answer(f"✅ <b>فاز ۲ تمام شد.</b> ایمیل‌ها آماده‌اند.\n📤 <b>فاز ۳:</b> ارسال ایمیل‌ها با تأخیر (جلوگیری از block شدن Gmail)...", parse_mode="HTML")
+
+    # ── Phase 3: Sequential sending with delays ────────────────────────
     results = []
     success_count = 0
 
-    for i, rec in enumerate(records):
-        name = rec['name']
-        info = rec['info']
+    for i, (rec, email_data) in enumerate(zip(records, email_data_list)):
         email_to = rec['email']
-        lang = rec['language']
+
+        if email_data is None:
+            results.append(f"❌ {email_to}: خطای تولید ایمیل")
+            continue
+
+        subject = email_data['subject']
+        body = email_data['body']
 
         try:
-            async with AsyncSessionLocal() as db_session:
-                profile = await search_service.get_recipient_profile(db_session, rec)
-
-            # Generate with sender_name, profile, and per-user model
-            email_data = await email_gen.generate_personalized_email(
-                context, name, info, lang, sender_name, profile, chat_id=chat_id
-            )
-            subject = email_data['subject']
-            body = email_data['body']
-
-            # Send with delay
             success, err_msg = await gmail_svc.send_email(
                 chat_id, tokens_encrypted, gmail_email, email_to, subject, body
             )
@@ -282,30 +373,29 @@ async def process_sender_name(message: Message, state: FSMContext):
                 results.append(f"✅ {email_to}")
             else:
                 results.append(f"❌ {email_to}: {err_msg}")
+        except Exception as e:
+            logger.error(f"Send error for {email_to}: {e}")
+            results.append(f"❌ {email_to}: خطای ارسال")
 
-            # Delay 8-12s + jitter
+        # Delay between sends: 8-12s + jitter to avoid Gmail rate limits
+        if i < total - 1:  # no delay after the last email
             delay = random.uniform(8, 12) + random.uniform(1, 3)
             await asyncio.sleep(delay)
 
-            # Progress update every 5
-            if (i + 1) % 5 == 0:
-                await message.answer(f"📊 پیشرفت: {i+1}/{len(records)}")
+        # Progress update every 5 emails
+        if (i + 1) % 5 == 0:
+            await message.answer(f"📊 ارسال: {i+1}/{total} — ✅ {success_count} موفق")
 
-        except Exception as e:
-            logger.error(f"Error for {email_to}: {e}")
-            results.append(f"❌ {email_to}: خطای تولید")
-
-    # Final report
+    # ── Final report ─────────────────────────────────────────────────
     report = (
         f"📊 <b>گزارش نهایی</b>\n"
         f"📌 کمپین: <b>{campaign_label}</b>\n"
-        f"📧 تعداد کل: <b>{len(records)}</b>\n\n"
+        f"📧 تعداد کل: <b>{total}</b>\n\n"
         f"✅ <b>موفق:</b> {success_count}\n"
-        f"❌ <b>ناموفق:</b> {len(records) - success_count}\n\n"
+        f"❌ <b>ناموفق:</b> {total - success_count}\n\n"
         "<b>جزئیات:</b>\n"
     )
     for res in results:
         report += f"• {res}\n"
 
     await message.answer(report, parse_mode="HTML", reply_markup=get_start_keyboard())
-    await state.clear()

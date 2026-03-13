@@ -13,40 +13,64 @@ class SearchService:
     CACHE_DAYS = 30
 
     def __init__(self):
-        self.ddg = DDGS()
-        self.tavily = TavilyClient(api_key=Config.TAVILY_API_KEY) if Config.TAVILY_API_KEY else None
+        # NOTE: Do NOT store a shared DDGS() instance here.
+        # DDGS is not thread-safe; create a fresh one per search call.
+        self.tavily_api_key = Config.TAVILY_API_KEY
         self.ors = OpenRouterService()
+
+    def _ddg_search(self, query: str, lang: str) -> str:
+        """
+        Blocking DDG search — called via asyncio.to_thread.
+        Creates a fresh DDGS instance per call to ensure thread-safety.
+        """
+        try:
+            ddg = DDGS()
+            results = ddg.text(query, lang=lang, max_results=10)
+            return '\n'.join([r['body'] for r in (results or [])[:5]])
+        except Exception:
+            return ''
+
+    def _tavily_search(self, query: str) -> str:
+        """
+        Blocking Tavily search — called via asyncio.to_thread.
+        Creates a fresh TavilyClient per call to ensure thread-safety.
+        """
+        try:
+            client = TavilyClient(api_key=self.tavily_api_key)
+            results = client.search(query, max_results=5)
+            return '\n'.join([r['content'] for r in results.get('results', [])])
+        except Exception:
+            return ''
 
     async def get_recipient_profile(self, session: AsyncSession, rec: Dict[str, str]) -> Dict[str, Any]:
         email = rec['email']
         lang = rec['language']
-        
+
         # Check cache
         recipient = await session.get(RecipientInfo, email)
         if recipient and recipient.last_searched > datetime.utcnow() - timedelta(days=self.CACHE_DAYS):
             return json.loads(recipient.profile_json) if recipient.profile_json else {}
-        
-        # Search
+
+        # Build search query
         name = rec['name']
         info = rec['info']
         query = f'"{name}" politician "{info}" biography targets mottos values keywords election campaign'
-        
-        try:
-            # Primary DDG
-            ddg_results = await asyncio.to_thread(self.ddg.text, query, lang=lang, max_results=10)
-            search_text = '\n'.join([r['body'] for r in ddg_results[:5]])
-        except:
-            search_text = ''
-        
-        if not search_text and self.tavily:
-            # Fallback Tavily
-            tavily_results = await asyncio.to_thread(self.tavily.search, query, max_results=5)
-            search_text = '\n'.join([r['content'] for r in tavily_results['results']])
-        
+
+        # Primary: DDG (fresh instance per call — thread-safe)
+        search_text = await asyncio.to_thread(self._ddg_search, query, lang)
+
+        # Fallback: Tavily
+        if not search_text and self.tavily_api_key:
+            search_text = await asyncio.to_thread(self._tavily_search, query)
+
         if not search_text:
-            profile = {'bio': '', 'gender': 'unknown', 'targets': [], 'mottos': [], 'values': [], 'keywords': [], 'subjects': []}
+            profile = {
+                'bio': '', 'gender': 'unknown',
+                'targets': [], 'mottos': [], 'values': [],
+                'keywords': [], 'subjects': []
+            }
         else:
-            # LLM extract
+            # LLM extraction
             extract_prompt = f"""Extract political profile from search text. Output JSON only.
 
 Text: {search_text[:4000]}
@@ -64,9 +88,13 @@ JSON schema:
             response = await self.ors.generate_email("JSON extractor. Respond JSON only.", extract_prompt)
             try:
                 profile = json.loads(response['body'])
-            except:
-                profile = {'bio': search_text[:500], 'gender': 'unknown', 'targets': [], 'mottos': [], 'values': [], 'keywords': [], 'subjects': []}
-        
+            except Exception:
+                profile = {
+                    'bio': search_text[:500], 'gender': 'unknown',
+                    'targets': [], 'mottos': [], 'values': [],
+                    'keywords': [], 'subjects': []
+                }
+
         # Save/update cache
         profile_json = json.dumps(profile)
         if recipient:
@@ -82,5 +110,5 @@ JSON schema:
             )
             session.add(recipient)
         await session.commit()
-        
+
         return profile

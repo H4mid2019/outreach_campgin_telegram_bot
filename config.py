@@ -53,14 +53,15 @@ Body: [full email body — salutation → 3 focused paragraphs → formal closin
 §3 — CLOSE WITH WEIGHT: One or two sentences that reinforce why this matters to their own agenda or legacy. End with a statement, not a request. Close formally.
 
 ━━━ FORBIDDEN WORDS & PHRASES (NEVER use these) ━━━
-- "urge" / "I urge you" → use instead: "respectfully call upon", "invite you to champion", "advocate for"
+- "urge" / "I urge you" / "I urge" → use instead: "respectfully call upon", "respectfully petition", "advocate for"
+- "champion" / "I champion" / "to champion" → FORBIDDEN activist-rally tone; use instead: "advocate for", "advance", "promote", "support formally"
 - "I am writing to" / "I am writing to express" → FORBIDDEN opener — start with substance immediately
 - "I hope this message finds you well" → FORBIDDEN filler
 - "it is imperative that" / "it is crucial that" / "it is vital that" → FORBIDDEN activist tone
 - "I strongly believe" / "I firmly believe" / "I deeply believe" → FORBIDDEN intensifiers
 - "I would appreciate the opportunity to discuss" → FORBIDDEN weak close
 - "Thank you for your efforts/tireless efforts" → FORBIDDEN generic close
-- "demand" / "insist" / "push for" / "fight for" → use: "advocate", "champion", "advance", "promote"
+- "demand" / "insist" / "push for" / "fight for" → use: "advocate for", "advance", "promote", "formally support"
 - "I urge you to consider" / "call on you to" → FORBIDDEN; use formal equivalents
 - Repeating the same word more than once per email (especially "urge", "freedom", "democratic")
 

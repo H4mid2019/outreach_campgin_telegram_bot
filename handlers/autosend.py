@@ -22,6 +22,29 @@ from typing import List, Dict, Tuple, Optional
 router = Router()
 logger = logging.getLogger(__name__)
 
+TELEGRAM_MAX_LENGTH = 4096
+
+
+async def _send_long_message(message: Message, text: str, **kwargs):
+    """Send a message, splitting into chunks if it exceeds Telegram's limit."""
+    if len(text) <= TELEGRAM_MAX_LENGTH:
+        await message.answer(text, **kwargs)
+        return
+    # Split on newlines to avoid cutting mid-line
+    lines = text.split("\n")
+    chunk = ""
+    for line in lines:
+        candidate = chunk + line + "\n"
+        if len(candidate) > TELEGRAM_MAX_LENGTH:
+            if chunk:
+                await message.answer(chunk.rstrip("\n"), **kwargs)
+            chunk = line + "\n"
+        else:
+            chunk = candidate
+    if chunk.strip():
+        await message.answer(chunk.rstrip("\n"), **kwargs)
+
+
 # Concurrency limits
 _PROFILE_SEMAPHORE = asyncio.Semaphore(5)   # max 5 concurrent web searches
 _GENERATE_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent LLM calls
@@ -398,4 +421,4 @@ async def _run_campaign(
     for res in results:
         report += f"• {res}\n"
 
-    await message.answer(report, parse_mode="HTML", reply_markup=get_start_keyboard())
+    await _send_long_message(message, report, parse_mode="HTML", reply_markup=get_start_keyboard())

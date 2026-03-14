@@ -33,7 +33,7 @@ class GmailService:
                 )
                 await asyncio.to_thread(server.starttls)
                 await asyncio.to_thread(server.login, gmail_email, app_password)
-                text = msg.as_string()
+                text = msg.as_bytes()
                 await asyncio.to_thread(server.sendmail, gmail_email, to_email, text)
                 await asyncio.to_thread(server.quit)
                 

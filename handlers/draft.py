@@ -163,9 +163,9 @@ def build_draft_page_text(cached_emails: Dict[int, List[Dict]], page: int, total
     for i, email_item in enumerate(page_emails, start=start_index + 1):
         text += f"<b>{i}. To: <code>{email_item['email_addr']}</code></b>\n"
         text += f"<b>Subject:</b> <code>{email_item['subject']}</code>\n\n"
-        text += f"<b>Body:</b>\n"
+        text += "<b>Body:</b>\n"
         text += f"<pre>{email_item['body']}</pre>\n\n"
-        text += f"{'─' * 50}\n\n"
+        text += f"{'─' * 15}\n\n"
 
     return text
 

@@ -10,8 +10,8 @@ class Config:
     TAVILY_API_KEY: str = os.getenv('TAVILY_API_KEY')
     
     OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
-    OPENROUTER_MODEL: str = os.getenv('OPENROUTER_MODEL', 'meta-llama/llama-4-scout')      # 0.84s · ~$6/40K emails · 9x faster than Grok
-    FALLBACK_MODEL: str = os.getenv('FALLBACK_MODEL', 'google/gemini-2.5-flash-lite')       # 2.28s · ~$6.80/40K emails
+    OPENROUTER_MODEL: str = os.getenv('OPENROUTER_MODEL', 'google/gemini-2.5-flash-lite')      # 0.84s · ~$6/40K emails · 9x faster than Grok
+    FALLBACK_MODEL: str = os.getenv('FALLBACK_MODEL', 'meta-llama/llama-4-scout')       # 2.28s · ~$6.80/40K emails
 
     # Special key for model selection access
     MODEL_ACCESS_KEY: str = os.getenv('MODEL_ACCESS_KEY', 'BlackCatsMeow')

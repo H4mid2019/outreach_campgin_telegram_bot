@@ -70,30 +70,8 @@ class SearchService:
                 'keywords': [], 'subjects': []
             }
         else:
-            # LLM extraction
-            extract_prompt = f"""Extract political profile from search text. Output JSON only.
-
-Text: {search_text[:4000]}
-
-JSON schema:
-{{
-  "bio": "200 word summary",
-  "gender": "male|female|unknown",
-  "targets": ["list of targets"],
-  "mottos": ["election mottos/slogans"],
-  "values": ["core values"],
-  "keywords": ["top 10 keywords"],
-  "subjects": ["repetitive titles/subjects"]
-}}"""
-            response = await self.ors.generate_email("JSON extractor. Respond JSON only.", extract_prompt)
-            try:
-                profile = json.loads(response['body'])
-            except Exception:
-                profile = {
-                    'bio': search_text[:500], 'gender': 'unknown',
-                    'targets': [], 'mottos': [], 'values': [],
-                    'keywords': [], 'subjects': []
-                }
+            # Use dedicated structured profile extractor (tool/function calling)
+            profile = await self.ors.extract_profile(search_text)
 
         # Save/update cache
         profile_json = json.dumps(profile)

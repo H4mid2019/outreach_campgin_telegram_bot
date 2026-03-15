@@ -8,7 +8,7 @@ def get_start_keyboard() -> InlineKeyboardMarkup:
     """Main menu keyboard"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📝 ساخت پیش‌نویس قابل کپی", callback_data="draft")
-    builder.button(text="📁 به‌روزرسانی لیست CSV", callback_data="update_csv")
+    builder.button(text="📁 لیست ایمیل شخصی", callback_data="update_csv")
     builder.button(text=" ارسال خودکار حرفه‌ای از Gmail", callback_data="autosend")
     builder.button(text="🤖 تغییر مدل AI", callback_data="change_model")
     builder.button(text="📋 مدیریت کمپین‌ها", callback_data="manage_campaigns")

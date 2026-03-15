@@ -450,7 +450,7 @@ async def start_update_csv(callback: CallbackQuery, state: FSMContext):
     )
 
     await callback.message.edit_text(
-        f"📁 <b>به‌روزرسانی لیست CSV:</b>\n\n"
+        f"📁 <b>به‌روزرسانی لیست ایمیل شخصی:</b>\n\n"
         f"{current_info}\n\n"
         "فرمت مورد نیاز: <code>name,email,info,language</code>\n\n"
         "✅ <b>روش ۱:</b> فایل CSV با header آپلود کنید:\n"

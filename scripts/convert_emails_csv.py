@@ -11,7 +11,7 @@ Usage:
     If output.csv is omitted, it defaults to sample_draft.csv
 
 Requirements (install via pip):
-    pip install openai tavily-python duckduckgo-search pandas tqdm python-dotenv requests
+    pip install openai tavily-python ddgs pandas tqdm python-dotenv requests
 
 API keys (set in .env or environment variables):
     OPENROUTER_API_KEY   – Required for AI enrichment
@@ -353,9 +353,12 @@ def normalize_email(raw: str) -> str | None:
 
 def search_ddg(query: str, max_results: int = 5) -> str:
     try:
-        from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=max_results, region="wt"))
+        import logging as _logging
+        from ddgs import DDGS
+        # Suppress noisy internal-engine errors from the ddgs library
+        _logging.getLogger("ddgs").setLevel(_logging.CRITICAL)
+        ddgs = DDGS()
+        results = list(ddgs.text(query, max_results=max_results, region="wt-wt"))
         return "\n".join(r.get("body", "") for r in results if r.get("body"))
     except Exception as e:
         log.debug(f"DDG search failed: {e}")
@@ -472,7 +475,8 @@ def ai_extract(email: str, meta: dict, snippet: str, client, model: str) -> dict
 class EmailCSVConverter:
     def __init__(
         self,
-        model: str = "openai/gpt-4o-mini",
+        model: str = "google/gemini-2.5-flash-lite"
+        "",
         search_personal_only: bool = False,
         no_search: bool = False,
         delay: float = 0.3,

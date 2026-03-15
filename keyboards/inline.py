@@ -13,7 +13,7 @@ def get_start_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="🤖 تغییر مدل AI", callback_data="change_model")
     builder.button(text="📋 مدیریت کمپین‌ها", callback_data="manage_campaigns")
     builder.button(text="ℹ️ راهنما", callback_data="help")
-    builder.button(text="📊 وضعیت", callback_data="status")
+    builder.button(text="📊 وضعیت/اتصال به gmail", callback_data="status")
     builder.adjust(1)
     return builder.as_markup()
 

@@ -155,3 +155,44 @@ async def delete_campaign(name: str) -> bool:
         await session.commit()
         return result.rowcount > 0
 
+
+# ─────────────────────────────────────────────
+# Retry-campaign helpers
+# ─────────────────────────────────────────────
+
+RETRY_CAMPAIGN_PREFIX = "_retry_"
+
+
+def make_retry_campaign_name(chat_id: int, timestamp: int) -> str:
+    """Build the DB name for a per-user retry campaign."""
+    return f"{RETRY_CAMPAIGN_PREFIX}{chat_id}_{timestamp}"
+
+
+def is_retry_campaign(name: str, chat_id: int) -> bool:
+    """Return True if this campaign name is a retry campaign owned by chat_id."""
+    return name.startswith(f"{RETRY_CAMPAIGN_PREFIX}{chat_id}_")
+
+
+async def get_retry_campaigns_for_user(chat_id: int) -> List[Dict]:
+    """Return all retry campaigns that belong to this user, newest first."""
+    prefix = f"{RETRY_CAMPAIGN_PREFIX}{chat_id}_"
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(PresetCampaign)
+            .where(PresetCampaign.name.startswith(prefix))
+            .order_by(PresetCampaign.created_at.desc())
+        )
+        rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "description": r.description,
+            "target": r.target,
+            "email_list": json.loads(r.email_list_json),
+            "created_at": r.created_at.strftime("%Y-%m-%d %H:%M"),
+            "updated_at": r.updated_at.strftime("%Y-%m-%d %H:%M") if r.updated_at else "",
+        }
+        for r in rows
+    ]
+

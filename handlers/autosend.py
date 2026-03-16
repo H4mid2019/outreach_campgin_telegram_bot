@@ -8,7 +8,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from utils.csv_validator import validate_and_parse_csv
 from services.email_generator import EmailGenerator
 from services.gmail_service import GmailService
-from database.db import AsyncSessionLocal, User, UserCsvRecord, get_all_campaigns, get_campaign_by_name
+from database.db import (
+    AsyncSessionLocal, User, UserCsvRecord,
+    get_all_campaigns, get_campaign_by_name,
+    get_retry_campaigns_for_user, upsert_campaign, delete_campaign,
+    make_retry_campaign_name, is_retry_campaign,
+)
 from services.search_service import SearchService
 from sqlalchemy import select
 import aiofiles
@@ -17,6 +22,7 @@ import tempfile
 import asyncio
 import random
 import logging
+import time
 from typing import List, Dict, Tuple, Optional
 
 router = Router()
@@ -110,17 +116,31 @@ async def start_autosend(callback: CallbackQuery, state: FSMContext):
     # Store Gmail info in state
     await state.update_data(gmail_email=user.gmail_email)
 
-    # Check for preset campaigns
-    campaigns = await get_all_campaigns()
+    # Collect global preset campaigns + this user's pending retry campaigns
+    global_campaigns = await get_all_campaigns()
+    # Filter out retry campaigns from the global list (they belong to specific users)
+    global_campaigns = [c for c in global_campaigns if not c["name"].startswith("_retry_")]
+    retry_campaigns = await get_retry_campaigns_for_user(chat_id)
 
-    if campaigns:
+    # Mark retry campaigns visually so they stand out in the keyboard
+    for rc in retry_campaigns:
+        rc["description"] = rc["description"]  # already has 🔁 prefix set at creation time
+
+    all_campaigns = global_campaigns + retry_campaigns
+
+    if all_campaigns:
         await state.set_state(AutosendStates.waiting_preset_selection)
+        retry_hint = (
+            f"\n⚠️ <b>{len(retry_campaigns)} کمپین retry</b> از ارسال‌های ناموفق قبلی دارید."
+            if retry_campaigns else ""
+        )
         await callback.message.edit_text(
             f"✅ متصل به: <b>{user.gmail_email}</b>\n\n"
             "📤 <b>ارسال خودکار ایمیل</b>\n\n"
-            "یک کمپین پیش‌تنظیم انتخاب کنید یا به صورت دستی ادامه دهید:",
+            "یک کمپین پیش‌تنظیم انتخاب کنید یا به صورت دستی ادامه دهید:"
+            f"{retry_hint}",
             parse_mode="HTML",
-            reply_markup=get_preset_campaigns_keyboard(campaigns, mode="autosend")
+            reply_markup=get_preset_campaigns_keyboard(all_campaigns, mode="autosend")
         )
     else:
         # No presets — go straight to manual flow
@@ -153,16 +173,23 @@ async def autosend_select_preset_campaign(callback: CallbackQuery, state: FSMCon
     data = await state.get_data()
     gmail_email = data.get("gmail_email", "")
 
+    # Use the human-readable description as the display label for retry campaigns
+    chat_id = callback.message.chat.id
+    display_label = (
+        campaign["description"] if is_retry_campaign(campaign_name, chat_id)
+        else campaign_name
+    )
+
     await state.update_data(
         records=records,
         context=context,
-        campaign_name=campaign_name,
+        campaign_name=campaign_name,  # internal name (used for retry-campaign detection)
     )
     await state.set_state(AutosendStates.waiting_sender_name)
 
     await callback.message.edit_text(
         f"✅ متصل به: <b>{gmail_email}</b>\n\n"
-        f"📌 <b>کمپین انتخاب شد: {campaign_name}</b>\n"
+        f"📌 <b>کمپین انتخاب شد: {display_label}</b>\n"
         f"📝 {campaign['description']}\n"
         f"🎯 هدف: <i>{context[:100]}{'...' if len(context) > 100 else ''}</i>\n"
         f"👥 {len(records)} ایمیل آماده\n\n"
@@ -356,6 +383,12 @@ async def _run_campaign(
     search_service = SearchService()
     total = len(records)
 
+    # ── If this run is itself a retry campaign, delete it now.
+    # A new one will be created at the end if there are still failures.
+    if is_retry_campaign(campaign_label, chat_id):
+        await delete_campaign(campaign_label)
+        logger.info(f"Deleted retry campaign '{campaign_label}' before re-run for chat_id {chat_id}")
+
     # ── Phase 1: Concurrent profile fetching ──────────────────────────
     await message.answer(f"🔍 <b>فاز ۱:</b> دریافت پروفایل‌های {total} گیرنده به‌صورت موازی...", parse_mode="HTML")
 
@@ -376,12 +409,14 @@ async def _run_campaign(
     # ── Phase 3: Sequential sending with delays ────────────────────────
     results = []
     success_count = 0
+    failed_records: List[Dict] = []  # collect records that failed to send
 
     for i, (rec, email_data) in enumerate(zip(records, email_data_list)):
         email_to = rec['email']
 
         if email_data is None:
             results.append(f"❌ {email_to}: خطای تولید ایمیل")
+            failed_records.append(rec)
             continue
 
         subject = email_data['subject']
@@ -396,9 +431,11 @@ async def _run_campaign(
                 results.append(f"✅ {email_to}")
             else:
                 results.append(f"❌ {email_to}: {err_msg}")
+                failed_records.append(rec)
         except Exception as e:
             logger.error(f"Send error for {email_to}: {e}")
             results.append(f"❌ {email_to}: خطای ارسال")
+            failed_records.append(rec)
 
         # Delay between sends: 8-12s + jitter to avoid Gmail rate limits
         if i < total - 1:  # no delay after the last email
@@ -408,6 +445,28 @@ async def _run_campaign(
         # Progress update every 5 emails
         if (i + 1) % 5 == 0:
             await message.answer(f"📊 ارسال: {i+1}/{total} — ✅ {success_count} موفق")
+
+    # ── Save failed emails as a retry campaign ────────────────────────
+    retry_note = ""
+    if failed_records:
+        retry_name = make_retry_campaign_name(chat_id, int(time.time()))
+        retry_description = f"🔁 ارسال مجدد: {campaign_label}"
+        await upsert_campaign(
+            name=retry_name,
+            description=retry_description,
+            target=context,
+            email_list=failed_records,
+        )
+        logger.info(
+            f"Created retry campaign '{retry_name}' with {len(failed_records)} "
+            f"failed recipients for chat_id {chat_id}"
+        )
+        retry_note = (
+            f"\n\n⚠️ <b>کمپین retry ایجاد شد</b>\n"
+            f"📌 نام: <code>{retry_name}</code>\n"
+            f"👥 {len(failed_records)} ایمیل ناموفق ذخیره شد.\n"
+            f"برای ارسال مجدد → <b>ارسال خودکار</b> → کمپین retry را انتخاب کنید."
+        )
 
     # ── Final report ─────────────────────────────────────────────────
     report = (
@@ -420,5 +479,7 @@ async def _run_campaign(
     )
     for res in results:
         report += f"• {res}\n"
+
+    report += retry_note
 
     await _send_long_message(message, report, parse_mode="HTML", reply_markup=get_start_keyboard())

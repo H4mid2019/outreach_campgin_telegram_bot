@@ -5,8 +5,33 @@ from utils.crypto import CryptoManager
 from typing import Tuple
 import asyncio
 import logging
+import encodings.idna
 
 logger = logging.getLogger(__name__)
+
+
+def _encode_email_address(email: str) -> str:
+    """Encode email address with IDNA-encoded domain for SMTP delivery.
+    
+    Handles internationalized domain names (IDN) like brüssel.diplo.de
+    by converting the domain part to its ASCII-compatible encoding (ACE).
+    e.g. info@brüssel.diplo.de -> info@xn--brssel-kva.diplo.de
+    """
+    if '@' not in email:
+        return email
+    local, domain = email.rsplit('@', 1)
+    try:
+        # Encode each label of the domain using IDNA
+        encoded_labels = [
+            encodings.idna.ToASCII(label).decode('ascii') if label else label
+            for label in domain.split('.')
+        ]
+        ascii_domain = '.'.join(encoded_labels)
+        return f"{local}@{ascii_domain}"
+    except (UnicodeError, UnicodeDecodeError):
+        # If IDNA encoding fails, return original and let SMTP raise the error
+        return email
+
 
 class GmailService:
     def __init__(self):
@@ -20,11 +45,14 @@ class GmailService:
             logger.error(f"Invalid app password for chat_id {chat_id}")
             return False, "خطا در رمز عبور اپلیکیشن Gmail"
 
+        # IDNA-encode recipient domain for SMTP envelope (handles non-ASCII domains)
+        smtp_to_email = _encode_email_address(to_email)
+
         for attempt in range(max_retries):
             try:
                 msg = MIMEMultipart()
                 msg['From'] = gmail_email
-                msg['To'] = to_email
+                msg['To'] = to_email  # keep original Unicode form in header
                 msg['Subject'] = subject
                 msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
@@ -34,7 +62,8 @@ class GmailService:
                 await asyncio.to_thread(server.starttls)
                 await asyncio.to_thread(server.login, gmail_email, app_password)
                 text = msg.as_bytes()
-                await asyncio.to_thread(server.sendmail, gmail_email, to_email, text)
+                # Use ASCII-compatible address for the SMTP envelope
+                await asyncio.to_thread(server.sendmail, gmail_email, smtp_to_email, text)
                 await asyncio.to_thread(server.quit)
                 
                 logger.info(f"Email sent successfully to {to_email} from chat_id {chat_id}")

@@ -275,7 +275,7 @@ async def process_sender_name(message: Message, state: FSMContext):
         f"📌 کمپین: <b>{campaign_label}</b>\n"
         f"👥 تعداد: <b>{len(records)}</b> ایمیل\n\n"
         f"⚡ پروفایل‌ها و ایمیل‌ها به‌صورت موازی آماده می‌شوند.\n"
-        f"📊 گزارش نهایی بعد از اتمام ارسال می‌رسد.",
+        f"📊 گزارش نهایی بعد از اتمام، ارسال می شود.",
         parse_mode="HTML"
     )
     await state.clear()  # free the FSM immediately

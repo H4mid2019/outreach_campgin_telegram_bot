@@ -1,6 +1,9 @@
+// Add after the title and description
 # Telegram AI Personalized Political Email Sender
 
 **Professional Telegram bot for generating and sending personalized formal emails to politicians (Bulgarian MPs) with AI.**
+
+**License**: This project is licensed under a custom non-commercial license. You are free to use, modify, and distribute it for **personal and educational purposes only**. Commercial use is strictly prohibited. See the [LICENSE](LICENSE) file for details.
 
 ## Features
 - ✅ Full Persian UI

@@ -14,6 +14,7 @@ def get_start_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="📋 مدیریت کمپین‌ها", callback_data="manage_campaigns")
     builder.button(text="ℹ️ راهنما", callback_data="help")
     builder.button(text="📊 وضعیت/اتصال به gmail", callback_data="status")
+    builder.button(text="📜 سورس کد/کد", callback_data="source_code")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -87,5 +88,17 @@ def get_campaign_delete_keyboard(campaigns: List[Dict]) -> InlineKeyboardMarkup:
         label = f"🗑 {name}"
         builder.button(text=label, callback_data=f"camp_delete_confirm:{name}")
     builder.button(text="🔙 بازگشت", callback_data="camp_admin:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_source_code_keyboard() -> InlineKeyboardMarkup:
+    """Source code dialog keyboard with GitHub link and back button."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🔗 مخزن GitHub",
+        url="https://github.com/H4mid2019/outreach_campgin_telegram_bot"
+    )
+    builder.button(text="🔙 بازگشت به منو", callback_data="main_menu")
     builder.adjust(1)
     return builder.as_markup()

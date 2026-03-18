@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from keyboards.inline import get_start_keyboard, get_gmail_keyboard, get_disconnect_keyboard, get_model_keyboard
+from keyboards.inline import get_start_keyboard, get_gmail_keyboard, get_disconnect_keyboard, get_model_keyboard, get_source_code_keyboard
 from database.db import AsyncSessionLocal, User
 from utils.user_settings import (
     get_user_model, set_user_model, is_authorized_for_model_selection,
@@ -114,6 +114,19 @@ async def cmd_disconnect(message: Message):
             await message.answer("✅ اتصال Gmail قطع شد.", reply_markup=get_start_keyboard())
         else:
             await message.answer("❌ کاربری یافت نشد.", reply_markup=get_start_keyboard())
+
+@router.callback_query(F.data == "source_code")
+async def show_source_code(callback: CallbackQuery):
+    """Show brief info about the open-source bot with a GitHub link."""
+    source_text = (
+        "📜 <b>سورس کد ربات</b>\n\n"
+        "این ربات <b>متن‌باز (Open Source)</b> است و کد منبع آن به صورت رایگان در GitHub موجود است.\n\n"
+        "می‌توانید از کد استفاده کنید، آن را بهبود دهید یا در توسعه‌اش مشارکت کنید.\n\n"
+        "📌 <b>مخزن:</b> <code>H4mid2019/outreach_campgin_telegram_bot</code>"
+    )
+    await callback.message.edit_text(source_text, parse_mode="HTML", reply_markup=get_source_code_keyboard())
+    await callback.answer()
+
 
 @router.callback_query(F.data == "main_menu")
 async def back_to_menu(callback: CallbackQuery, state: FSMContext):

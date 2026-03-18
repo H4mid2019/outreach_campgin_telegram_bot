@@ -1,4 +1,3 @@
-// Add after the title and description
 # Telegram AI Personalized Political Email Sender
 
 **Professional Telegram bot for generating and sending personalized formal emails to politicians (Bulgarian MPs) with AI.**

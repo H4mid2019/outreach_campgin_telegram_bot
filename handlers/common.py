@@ -119,8 +119,9 @@ async def cmd_disconnect(message: Message):
 async def show_source_code(callback: CallbackQuery):
     """Show brief info about the open-source bot with a GitHub link."""
     source_text = (
-        "📜 <b>سورس کد ربات</b>\n\n"
+        "📜 <b>سورس کد ربات / Source Code</b>\n\n"
         "این ربات <b>متن‌باز (Open Source)</b> است و کد منبع آن به صورت رایگان در GitHub موجود است.\n\n"
+        "می‌توانید رو کامپیوتر یا سرور خودتان ، با ربات تلگرام خودتان نیز راه بياندازيد.\n\n"
         "می‌توانید از کد استفاده کنید، آن را بهبود دهید یا در توسعه‌اش مشارکت کنید.\n\n"
         "📌 <b>مخزن:</b> <code>H4mid2019/outreach_campgin_telegram_bot</code>"
     )

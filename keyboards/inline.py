@@ -14,7 +14,7 @@ def get_start_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="📋 مدیریت کمپین‌ها", callback_data="manage_campaigns")
     builder.button(text="ℹ️ راهنما", callback_data="help")
     builder.button(text="📊 وضعیت/اتصال به gmail", callback_data="status")
-    builder.button(text="📜 سورس کد/کد", callback_data="source_code")
+    builder.button(text="📜 Source Code/کد", callback_data="source_code")
     builder.adjust(1)
     return builder.as_markup()
 

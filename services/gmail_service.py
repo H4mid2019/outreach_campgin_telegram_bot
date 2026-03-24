@@ -79,7 +79,7 @@ class GmailService:
                 text = msg.as_bytes()
                 # Use ASCII-compatible address for the SMTP envelope
                 await asyncio.to_thread(server.sendmail, gmail_email, smtp_to_email, text)
-                await asyncio.to_thread(server.quit())
+                await asyncio.to_thread(server.quit)
 
                 logger.info(f"Email sent successfully to {to_email} from chat_id {chat_id}")
                 return True, "ارسال موفق"

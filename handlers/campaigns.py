@@ -601,8 +601,8 @@ async def receive_campaign_attachments(message: Message, state: FSMContext):
         finally:
             os.unlink(temp_path)
 
-        count_text = f"📎 {len(attachments)} فایل آپلود شد: {att_meta['filename']} ({file_size_mb:.1f}MB)"
-        await message.answer(count_text, reply_markup=_admin_back_keyboard())
+        count_text = f"📎 {len(attachments)} فایل آپلود شد: <code>{att_meta['filename']}</code> ({file_size_mb:.1f}MB)"
+        await message.answer(count_text, parse_mode="HTML", reply_markup=_admin_back_keyboard())
         return
 
     text_lower = message.text.strip().lower()

@@ -25,7 +25,6 @@ import json
 import time
 import logging
 import argparse
-import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -52,219 +51,220 @@ log = logging.getLogger(__name__)
 
 # TLD → (country_name, iso_lang, fallback_info)
 TLD_META: dict[str, tuple[str, str, str]] = {
-    "ca":  ("Canada",      "en", "Canadian Politics"),
-    "fr":  ("France",      "fr", "French Politics"),
-    "au":  ("Australia",   "en", "Australian Politics"),
-    "uk":  ("UK",          "en", "UK Politics"),
-    "se":  ("Sweden",      "sv", "Swedish Politics"),
-    "it":  ("Italy",       "it", "Italian Politics"),
-    "es":  ("Spain",       "es", "Spanish Politics"),
-    "dk":  ("Denmark",     "da", "Danish Politics"),
-    "no":  ("Norway",      "no", "Norwegian Politics"),
-    "at":  ("Austria",     "de", "Austrian Politics"),
-    "nl":  ("Netherlands", "nl", "Dutch Politics"),
-    "hu":  ("Hungary",     "hu", "Hungarian Politics"),
-    "ch":  ("Switzerland", "de", "Swiss Politics"),
-    "de":  ("Germany",     "de", "German Politics"),
-    "be":  ("Belgium",     "nl", "Belgian Politics"),
-    "pl":  ("Poland",      "pl", "Polish Politics"),
-    "cz":  ("Czech Republic", "cs", "Czech Politics"),
-    "sk":  ("Slovakia",    "sk", "Slovak Politics"),
-    "ro":  ("Romania",     "ro", "Romanian Politics"),
-    "bg":  ("Bulgaria",    "bg", "Bulgarian Politics"),
-    "hr":  ("Croatia",     "hr", "Croatian Politics"),
-    "si":  ("Slovenia",    "sl", "Slovenian Politics"),
-    "pt":  ("Portugal",    "pt", "Portuguese Politics"),
-    "gr":  ("Greece",      "el", "Greek Politics"),
-    "fi":  ("Finland",     "fi", "Finnish Politics"),
-    "lt":  ("Lithuania",   "lt", "Lithuanian Politics"),
-    "lv":  ("Latvia",      "lv", "Latvian Politics"),
-    "ee":  ("Estonia",     "et", "Estonian Politics"),
-    "ie":  ("Ireland",     "en", "Irish Politics"),
-    "lu":  ("Luxembourg",  "fr", "Luxembourg Politics"),
-    "mt":  ("Malta",       "en", "Maltese Politics"),
-    "cy":  ("Cyprus",      "el", "Cypriot Politics"),
-    "eu":  ("EU",          "en", "EU / MEP"),
+    "ca": ("Canada", "en", "Canadian Politics"),
+    "fr": ("France", "fr", "French Politics"),
+    "au": ("Australia", "en", "Australian Politics"),
+    "uk": ("UK", "en", "UK Politics"),
+    "se": ("Sweden", "sv", "Swedish Politics"),
+    "it": ("Italy", "it", "Italian Politics"),
+    "es": ("Spain", "es", "Spanish Politics"),
+    "dk": ("Denmark", "da", "Danish Politics"),
+    "no": ("Norway", "no", "Norwegian Politics"),
+    "at": ("Austria", "de", "Austrian Politics"),
+    "nl": ("Netherlands", "nl", "Dutch Politics"),
+    "hu": ("Hungary", "hu", "Hungarian Politics"),
+    "ch": ("Switzerland", "de", "Swiss Politics"),
+    "de": ("Germany", "de", "German Politics"),
+    "be": ("Belgium", "nl", "Belgian Politics"),
+    "pl": ("Poland", "pl", "Polish Politics"),
+    "cz": ("Czech Republic", "cs", "Czech Politics"),
+    "sk": ("Slovakia", "sk", "Slovak Politics"),
+    "ro": ("Romania", "ro", "Romanian Politics"),
+    "bg": ("Bulgaria", "bg", "Bulgarian Politics"),
+    "hr": ("Croatia", "hr", "Croatian Politics"),
+    "si": ("Slovenia", "sl", "Slovenian Politics"),
+    "pt": ("Portugal", "pt", "Portuguese Politics"),
+    "gr": ("Greece", "el", "Greek Politics"),
+    "fi": ("Finland", "fi", "Finnish Politics"),
+    "lt": ("Lithuania", "lt", "Lithuanian Politics"),
+    "lv": ("Latvia", "lv", "Latvian Politics"),
+    "ee": ("Estonia", "et", "Estonian Politics"),
+    "ie": ("Ireland", "en", "Irish Politics"),
+    "lu": ("Luxembourg", "fr", "Luxembourg Politics"),
+    "mt": ("Malta", "en", "Maltese Politics"),
+    "cy": ("Cyprus", "el", "Cypriot Politics"),
+    "eu": ("EU", "en", "EU / MEP"),
     "int": ("International", "en", "International Organization"),
     "org": ("International", "en", "NGO / Organization"),
     "com": ("International", "en", "Organization"),
     "net": ("International", "en", "Organization"),
-    "gov": ("USA",         "en", "US Government"),
+    "gov": ("USA", "en", "US Government"),
 }
 
 # Known domain fragments → (category, country, language)
 # Checked as `fragment in domain.lower()`
 DOMAIN_HINTS: dict[str, tuple[str, str, str]] = {
     # Canada
-    "parl.gc.ca":           ("Member of Parliament", "Canada", "en"),
-    "pm.gc.ca":             ("Prime Minister's Office", "Canada", "en"),
-    "gc.ca":                ("Canadian Government", "Canada", "en"),
+    "parl.gc.ca": ("Member of Parliament", "Canada", "en"),
+    "pm.gc.ca": ("Prime Minister's Office", "Canada", "en"),
+    "gc.ca": ("Canadian Government", "Canada", "en"),
     # France
     "assemblee-nationale.fr": ("Member of Parliament", "France", "fr"),
-    "senat.fr":             ("Senator", "France", "fr"),
-    "diplomatie.gouv.fr":   ("Ministry of Foreign Affairs", "France", "fr"),
-    "interieur.gouv.fr":    ("Ministry of Interior", "France", "fr"),
-    "pm.gouv.fr":           ("Prime Minister's Office", "France", "fr"),
-    "gouv.fr":              ("French Government", "France", "fr"),
+    "senat.fr": ("Senator", "France", "fr"),
+    "diplomatie.gouv.fr": ("Ministry of Foreign Affairs", "France", "fr"),
+    "interieur.gouv.fr": ("Ministry of Interior", "France", "fr"),
+    "pm.gouv.fr": ("Prime Minister's Office", "France", "fr"),
+    "gouv.fr": ("French Government", "France", "fr"),
     "parti-renaissance.fr": ("Renaissance Party", "France", "fr"),
     "rassemblementnational.fr": ("Rassemblement National", "France", "fr"),
     "lafranceinsoumise.fr": ("La France Insoumise", "France", "fr"),
-    "republicains.fr":      ("Les Républicains", "France", "fr"),
-    "partisocialiste.fr":   ("Parti Socialiste", "France", "fr"),
-    "eelv.fr":              ("Europe Écologie Les Verts", "France", "fr"),
-    "cncdh.fr":             ("Human Rights Commission", "France", "fr"),
+    "republicains.fr": ("Les Républicains", "France", "fr"),
+    "partisocialiste.fr": ("Parti Socialiste", "France", "fr"),
+    "eelv.fr": ("Europe Écologie Les Verts", "France", "fr"),
+    "cncdh.fr": ("Human Rights Commission", "France", "fr"),
     "defenseurdesdroits.fr": ("Defender of Rights", "France", "fr"),
-    "pcf.fr":               ("PCF", "France", "fr"),
+    "pcf.fr": ("PCF", "France", "fr"),
     # Australia
-    "aph.gov.au":           ("Member of Parliament", "Australia", "en"),
-    "gov.au":               ("Australian Government", "Australia", "en"),
+    "aph.gov.au": ("Member of Parliament", "Australia", "en"),
+    "gov.au": ("Australian Government", "Australia", "en"),
     # UK
-    "parliament.uk":        ("Member of Parliament", "UK", "en"),
-    "fcdo.gov.uk":          ("Foreign Affairs", "UK", "en"),
-    "labour.org.uk":        ("Labour Party", "UK", "en"),
+    "parliament.uk": ("Member of Parliament", "UK", "en"),
+    "fcdo.gov.uk": ("Foreign Affairs", "UK", "en"),
+    "labour.org.uk": ("Labour Party", "UK", "en"),
     "conservativeparty.org.uk": ("Conservative Party", "UK", "en"),
-    "libdems.org.uk":       ("Liberal Democrats", "UK", "en"),
-    "snp.org":              ("SNP", "UK", "en"),
-    "greenparty.org.uk":    ("Green Party", "UK", "en"),
-    "amnesty.org.uk":       ("Amnesty International", "UK", "en"),
-    "theguardian.com":      ("Media", "UK", "en"),
-    "thetimes.co.uk":       ("Media", "UK", "en"),
-    "bbc.co.uk":            ("Media", "UK", "en"),
+    "libdems.org.uk": ("Liberal Democrats", "UK", "en"),
+    "snp.org": ("SNP", "UK", "en"),
+    "greenparty.org.uk": ("Green Party", "UK", "en"),
+    "amnesty.org.uk": ("Amnesty International", "UK", "en"),
+    "theguardian.com": ("Media", "UK", "en"),
+    "thetimes.co.uk": ("Media", "UK", "en"),
+    "bbc.co.uk": ("Media", "UK", "en"),
     "equalityhumanrights.com": ("Equality & Human Rights", "UK", "en"),
     # Sweden
-    "riksdagen.se":         ("Member of Parliament", "Sweden", "sv"),
+    "riksdagen.se": ("Member of Parliament", "Sweden", "sv"),
     "regeringskansliet.se": ("Government Office", "Sweden", "sv"),
     # Italy
-    "esteri.it":            ("Ministry of Foreign Affairs", "Italy", "it"),
-    "camera.it":            ("Member of Parliament", "Italy", "it"),
-    "legaonline.it":        ("Lega Party", "Italy", "it"),
+    "esteri.it": ("Ministry of Foreign Affairs", "Italy", "it"),
+    "camera.it": ("Member of Parliament", "Italy", "it"),
+    "legaonline.it": ("Lega Party", "Italy", "it"),
     "partitodemocratico.it": ("Partito Democratico", "Italy", "it"),
-    "forzaitalia.it":       ("Forza Italia", "Italy", "it"),
-    "movimento5stelle.it":  ("Movimento 5 Stelle", "Italy", "it"),
-    "fratelli-italia.it":   ("Fratelli d'Italia", "Italy", "it"),
+    "forzaitalia.it": ("Forza Italia", "Italy", "it"),
+    "movimento5stelle.it": ("Movimento 5 Stelle", "Italy", "it"),
+    "fratelli-italia.it": ("Fratelli d'Italia", "Italy", "it"),
     # Spain
-    "maec.es":              ("Ministry of Foreign Affairs", "Spain", "es"),
-    "senado.es":            ("Senator", "Spain", "es"),
-    "congreso.es":          ("Member of Congress", "Spain", "es"),
-    "presidencia.":         ("Presidency", "Spain", "es"),
-    "voxespana.es":         ("Vox Party", "Spain", "es"),
-    "movimientosumar.es":   ("Sumar", "Spain", "es"),
-    "psoe.es":              ("PSOE", "Spain", "es"),
-    "pp.es":                ("PP", "Spain", "es"),
+    "maec.es": ("Ministry of Foreign Affairs", "Spain", "es"),
+    "senado.es": ("Senator", "Spain", "es"),
+    "congreso.es": ("Member of Congress", "Spain", "es"),
+    "presidencia.": ("Presidency", "Spain", "es"),
+    "voxespana.es": ("Vox Party", "Spain", "es"),
+    "movimientosumar.es": ("Sumar", "Spain", "es"),
+    "psoe.es": ("PSOE", "Spain", "es"),
+    "pp.es": ("PP", "Spain", "es"),
     # Denmark
-    "ft.dk":                ("Member of Parliament", "Denmark", "da"),
-    "um.dk":                ("Ministry of Foreign Affairs", "Denmark", "da"),
-    "stm.dk":               ("Prime Minister's Office", "Denmark", "da"),
+    "ft.dk": ("Member of Parliament", "Denmark", "da"),
+    "um.dk": ("Ministry of Foreign Affairs", "Denmark", "da"),
+    "stm.dk": ("Prime Minister's Office", "Denmark", "da"),
     "socialdemokratiet.dk": ("Social Democrats", "Denmark", "da"),
-    "moderaterne.dk":       ("Moderaterne", "Denmark", "da"),
-    "alternativet.dk":      ("Alternativet", "Denmark", "da"),
+    "moderaterne.dk": ("Moderaterne", "Denmark", "da"),
+    "alternativet.dk": ("Alternativet", "Denmark", "da"),
     # Norway
-    "stortinget.no":        ("Member of Parliament", "Norway", "no"),
-    "smk.dep.no":           ("Prime Minister's Office", "Norway", "no"),
-    "dep.no":               ("Norwegian Government", "Norway", "no"),
-    "arbeiderpartiet.no":   ("Labour Party", "Norway", "no"),
-    "hoyre.no":             ("Høyre", "Norway", "no"),
-    "sv.no":                ("SV", "Norway", "no"),
-    "mdg.no":               ("MDG", "Norway", "no"),
-    "amnesty.no":           ("Amnesty International", "Norway", "no"),
+    "stortinget.no": ("Member of Parliament", "Norway", "no"),
+    "smk.dep.no": ("Prime Minister's Office", "Norway", "no"),
+    "dep.no": ("Norwegian Government", "Norway", "no"),
+    "arbeiderpartiet.no": ("Labour Party", "Norway", "no"),
+    "hoyre.no": ("Høyre", "Norway", "no"),
+    "sv.no": ("SV", "Norway", "no"),
+    "mdg.no": ("MDG", "Norway", "no"),
+    "amnesty.no": ("Amnesty International", "Norway", "no"),
     # Austria
-    "parlament.gv.at":      ("Member of Parliament", "Austria", "de"),
-    "bka.gv.at":            ("Federal Chancellery", "Austria", "de"),
-    "bmeia.gv.at":          ("Ministry of Foreign Affairs", "Austria", "de"),
-    "oevp.at":              ("ÖVP", "Austria", "de"),
-    "gruene.at":            ("Greens", "Austria", "de"),
-    "spoe.at":              ("SPÖ", "Austria", "de"),
-    "fpoe.at":              ("FPÖ", "Austria", "de"),
-    "neos.eu":              ("NEOS", "Austria", "de"),
+    "parlament.gv.at": ("Member of Parliament", "Austria", "de"),
+    "bka.gv.at": ("Federal Chancellery", "Austria", "de"),
+    "bmeia.gv.at": ("Ministry of Foreign Affairs", "Austria", "de"),
+    "oevp.at": ("ÖVP", "Austria", "de"),
+    "gruene.at": ("Greens", "Austria", "de"),
+    "spoe.at": ("SPÖ", "Austria", "de"),
+    "fpoe.at": ("FPÖ", "Austria", "de"),
+    "neos.eu": ("NEOS", "Austria", "de"),
     # Netherlands
-    "tweedekamer.nl":       ("Member of Parliament", "Netherlands", "nl"),
-    "minbuza.nl":           ("Ministry of Foreign Affairs", "Netherlands", "nl"),
-    "d66.nl":               ("D66", "Netherlands", "nl"),
-    "groenlinkspvda.nl":    ("GroenLinks-PvdA", "Netherlands", "nl"),
-    "voltnederland.org":    ("Volt Netherlands", "Netherlands", "nl"),
+    "tweedekamer.nl": ("Member of Parliament", "Netherlands", "nl"),
+    "minbuza.nl": ("Ministry of Foreign Affairs", "Netherlands", "nl"),
+    "d66.nl": ("D66", "Netherlands", "nl"),
+    "groenlinkspvda.nl": ("GroenLinks-PvdA", "Netherlands", "nl"),
+    "voltnederland.org": ("Volt Netherlands", "Netherlands", "nl"),
     # Hungary
-    "me.gov.hu":            ("Prime Minister's Office", "Hungary", "hu"),
-    "mfa.gov.hu":           ("Ministry of Foreign Affairs", "Hungary", "hu"),
-    "parlament.hu":         ("Member of Parliament", "Hungary", "hu"),
-    "keh.hu":               ("Presidential Office", "Hungary", "hu"),
-    "fidesz.hu":            ("Fidesz", "Hungary", "hu"),
-    "mszp.hu":              ("MSZP", "Hungary", "hu"),
-    "momentum.hu":          ("Momentum", "Hungary", "hu"),
+    "me.gov.hu": ("Prime Minister's Office", "Hungary", "hu"),
+    "mfa.gov.hu": ("Ministry of Foreign Affairs", "Hungary", "hu"),
+    "parlament.hu": ("Member of Parliament", "Hungary", "hu"),
+    "keh.hu": ("Presidential Office", "Hungary", "hu"),
+    "fidesz.hu": ("Fidesz", "Hungary", "hu"),
+    "mszp.hu": ("MSZP", "Hungary", "hu"),
+    "momentum.hu": ("Momentum", "Hungary", "hu"),
     # Switzerland
-    "parl.admin.ch":        ("Member of Parliament", "Switzerland", "de"),
-    "eda.admin.ch":         ("Ministry of Foreign Affairs", "Switzerland", "de"),
-    "admin.ch":             ("Swiss Government", "Switzerland", "de"),
-    "sp-ps.ch":             ("SP", "Switzerland", "de"),
-    "fdp.ch":               ("FDP", "Switzerland", "de"),
-    "die-mitte.ch":         ("Die Mitte", "Switzerland", "de"),
-    "svp.ch":               ("SVP", "Switzerland", "de"),
-    "gruene.ch":            ("Greens", "Switzerland", "de"),
+    "parl.admin.ch": ("Member of Parliament", "Switzerland", "de"),
+    "eda.admin.ch": ("Ministry of Foreign Affairs", "Switzerland", "de"),
+    "admin.ch": ("Swiss Government", "Switzerland", "de"),
+    "sp-ps.ch": ("SP", "Switzerland", "de"),
+    "fdp.ch": ("FDP", "Switzerland", "de"),
+    "die-mitte.ch": ("Die Mitte", "Switzerland", "de"),
+    "svp.ch": ("SVP", "Switzerland", "de"),
+    "gruene.ch": ("Greens", "Switzerland", "de"),
     # Germany
-    "bundestag.de":         ("Member of Bundestag", "Germany", "de"),
-    "auswaertiges":         ("Ministry of Foreign Affairs", "Germany", "de"),
-    "cdu.de":               ("CDU", "Germany", "de"),
+    "bundestag.de": ("Member of Bundestag", "Germany", "de"),
+    "auswaertiges": ("Ministry of Foreign Affairs", "Germany", "de"),
+    "cdu.de": ("CDU", "Germany", "de"),
     "csu-landesleitung.de": ("CSU", "Germany", "de"),
-    "die-linke.de":         ("Die Linke", "Germany", "de"),
-    "afd.de":               ("AfD", "Germany", "de"),
-    "spd.de":               ("SPD", "Germany", "de"),
-    "gruene.de":            ("Greens", "Germany", "de"),
-    "fdp.de":               ("FDP", "Germany", "de"),
-    "cducsu.de":            ("CDU/CSU", "Germany", "de"),
-    "brüssel.diplo.de":     ("German Embassy Brussels", "Germany", "de"),
-    "diplo.de":             ("German Embassy", "Germany", "de"),
+    "die-linke.de": ("Die Linke", "Germany", "de"),
+    "afd.de": ("AfD", "Germany", "de"),
+    "spd.de": ("SPD", "Germany", "de"),
+    "gruene.de": ("Greens", "Germany", "de"),
+    "fdp.de": ("FDP", "Germany", "de"),
+    "cducsu.de": ("CDU/CSU", "Germany", "de"),
+    "brüssel.diplo.de": ("German Embassy Brussels", "Germany", "de"),
+    "diplo.de": ("German Embassy", "Germany", "de"),
     # International / NGOs
-    "fidh.org":             ("FIDH", "International", "en"),
-    "amnesty.org":          ("Amnesty International", "International", "en"),
-    "europarl.europa.eu":   ("MEP", "EU", "en"),
+    "fidh.org": ("FIDH", "International", "en"),
+    "amnesty.org": ("Amnesty International", "International", "en"),
+    "europarl.europa.eu": ("MEP", "EU", "en"),
 }
 
 # Local-part keywords → info hint
 LOCAL_KEYWORDS: dict[str, str] = {
-    "pm":           "Prime Minister's Office",
-    "premier":      "Premier's Office",
-    "minister":     "Minister",
-    "president":    "President's Office",
-    "senator":      "Senator",
-    "ambassador":   "Ambassador",
-    "cabinet":      "Cabinet Office",
-    "contact":      "General Contact",
-    "info":         "General Contact",
-    "press":        "Press Office",
-    "presse":       "Press Office",
-    "communication":"Communications",
-    "communication":"Communications",
-    "questions":    "General Contact",
-    "courrier":     "General Contact",
-    "post":         "General Contact",
-    "facom":        "Foreign Affairs Committee",
-    "fcdo":         "Foreign Affairs",
-    "groupe":       "Parliamentary Group",
-    "fraktion":     "Parliamentary Group",
-    "fractie":      "Parliamentary Group",
-    "fraction":     "Parliamentary Group",
-    "partikontoret":"Party Office",
+    "pm": "Prime Minister's Office",
+    "premier": "Premier's Office",
+    "minister": "Minister",
+    "president": "President's Office",
+    "senator": "Senator",
+    "ambassador": "Ambassador",
+    "cabinet": "Cabinet Office",
+    "contact": "General Contact",
+    "info": "General Contact",
+    "press": "Press Office",
+    "presse": "Press Office",
+    "communication": "Communications",
+    "communication": "Communications",
+    "questions": "General Contact",
+    "courrier": "General Contact",
+    "post": "General Contact",
+    "facom": "Foreign Affairs Committee",
+    "fcdo": "Foreign Affairs",
+    "groupe": "Parliamentary Group",
+    "fraktion": "Parliamentary Group",
+    "fractie": "Parliamentary Group",
+    "fraction": "Parliamentary Group",
+    "partikontoret": "Party Office",
     "bundespartei": "Federal Party Office",
-    "bundesvorstand":"Federal Party Board",
-    "parteivorstand":"Party Executive",
-    "sekretariat":  "Party Secretariat",
-    "direktionn":   "Party Directorate",
-    "direktion":    "Party Directorate",
-    "audiencias":   "Public Audience",
-    "sct":          "Campaigns",
-    "campaigns":    "Campaigns",
-    "urp":          "Press Relations",
-    "rpa":          "EU Affairs",
-    "reper":        "EU Representation",
-    "dpm":          "Deputy Foreign Minister",
-    "deza":         "Development Cooperation",
-    "hrd":          "Human Rights Division",
-    "speakersoffice":"Speaker's Office",
+    "bundesvorstand": "Federal Party Board",
+    "parteivorstand": "Party Executive",
+    "sekretariat": "Party Secretariat",
+    "direktionn": "Party Directorate",
+    "direktion": "Party Directorate",
+    "audiencias": "Public Audience",
+    "sct": "Campaigns",
+    "campaigns": "Campaigns",
+    "urp": "Press Relations",
+    "rpa": "EU Affairs",
+    "reper": "EU Representation",
+    "dpm": "Deputy Foreign Minister",
+    "deza": "Development Cooperation",
+    "hrd": "Human Rights Division",
+    "speakersoffice": "Speaker's Office",
 }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def slug_to_name(slug: str) -> str:
     """'pierre.poilievre' → 'Pierre Poilievre'  (best-effort)"""
@@ -275,8 +275,9 @@ def slug_to_name(slug: str) -> str:
 
 def is_personal_email(local: str) -> bool:
     """Heuristic: 'first.last' or 'first_last' looks like a personal address."""
-    return bool(re.match(r"^[a-z]{2,}\.[a-z]{2,}$", local, re.I)) or \
-           bool(re.match(r"^[a-z]{2,}-[a-z]{2,}$", local, re.I))
+    return bool(re.match(r"^[a-z]{2,}\.[a-z]{2,}$", local, re.I)) or bool(
+        re.match(r"^[a-z]{2,}-[a-z]{2,}$", local, re.I)
+    )
 
 
 def tld_from_domain(domain: str) -> str:
@@ -326,13 +327,13 @@ def meta_from_email(email: str) -> dict:
         guessed_name = info_hint or domain.split(".")[0].title()
 
     return {
-        "local":        local,
-        "domain":       domain,
+        "local": local,
+        "domain": domain,
         "guessed_name": guessed_name,
-        "info_hint":    info_hint or "Contact",
-        "country":      country,
-        "language":     language,
-        "is_personal":  personal,
+        "info_hint": info_hint or "Contact",
+        "country": country,
+        "language": language,
+        "is_personal": personal,
     }
 
 
@@ -351,10 +352,12 @@ def normalize_email(raw: str) -> str | None:
 # Search helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def search_ddg(query: str, max_results: int = 5) -> str:
     try:
         import logging as _logging
         from ddgs import DDGS
+
         # Suppress noisy internal-engine errors from the ddgs library
         _logging.getLogger("ddgs").setLevel(_logging.CRITICAL)
         ddgs = DDGS()
@@ -418,8 +421,8 @@ Example: {{"name": "Melanie Joly", "info": "Minister of Foreign Affairs Canada",
 def ai_extract(email: str, meta: dict, snippet: str, client, model: str) -> dict:
     if not client:
         return {
-            "name":     meta["guessed_name"],
-            "info":     meta["info_hint"],
+            "name": meta["guessed_name"],
+            "info": meta["info_hint"],
             "language": meta["language"],
         }
 
@@ -438,7 +441,7 @@ def ai_extract(email: str, meta: dict, snippet: str, client, model: str) -> dict
                 model=model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user",   "content": prompt},
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.05,
                 max_tokens=200,
@@ -454,16 +457,16 @@ def ai_extract(email: str, meta: dict, snippet: str, client, model: str) -> dict
                     raise ValueError(f"Missing key: {key}")
             return extracted
         except json.JSONDecodeError as e:
-            log.debug(f"JSON parse error (attempt {attempt+1}): {e} — raw={raw!r}")
+            log.debug(f"JSON parse error (attempt {attempt + 1}): {e} — raw={raw!r}")
             time.sleep(1)
         except Exception as e:
-            log.debug(f"AI extraction error (attempt {attempt+1}): {e}")
+            log.debug(f"AI extraction error (attempt {attempt + 1}): {e}")
             time.sleep(2)
 
     # Final fallback
     return {
-        "name":     meta["guessed_name"],
-        "info":     meta["info_hint"],
+        "name": meta["guessed_name"],
+        "info": meta["info_hint"],
         "language": meta["language"],
     }
 
@@ -472,11 +475,11 @@ def ai_extract(email: str, meta: dict, snippet: str, client, model: str) -> dict
 # Main converter
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class EmailCSVConverter:
     def __init__(
         self,
-        model: str = "google/gemini-2.5-flash-lite"
-        "",
+        model: str = "google/gemini-2.5-flash-lite",
         search_personal_only: bool = False,
         no_search: bool = False,
         delay: float = 0.3,
@@ -490,6 +493,7 @@ class EmailCSVConverter:
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
         if openrouter_key:
             from openai import OpenAI
+
             self.ai_client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
                 api_key=openrouter_key,
@@ -498,13 +502,16 @@ class EmailCSVConverter:
             log.info(f"OpenRouter AI enabled (model: {model})")
         else:
             self.ai_client = None
-            log.warning("OPENROUTER_API_KEY not set — AI enrichment disabled, using heuristics only.")
+            log.warning(
+                "OPENROUTER_API_KEY not set — AI enrichment disabled, using heuristics only."
+            )
 
         # Tavily
         tavily_key = os.getenv("TAVILY_API_KEY")
         if tavily_key:
             try:
                 from tavily import TavilyClient
+
                 self.tavily = TavilyClient(api_key=tavily_key)
                 log.info("Tavily search enabled.")
             except ImportError:
@@ -519,12 +526,12 @@ class EmailCSVConverter:
             name_part = meta["guessed_name"]
             return (
                 f'"{name_part}" politician OR minister OR senator OR MP OR MEP '
-                f'{meta["country"]} language OR party OR role site:wikipedia.org OR site:parliament.{tld_from_domain(meta["domain"])}'
+                f"{meta['country']} language OR party OR role site:wikipedia.org OR site:parliament.{tld_from_domain(meta['domain'])}"
             )
         else:
             # Generic mailbox — search for the organisation
             org = meta["domain"].split(".")[0]
-            return f'{org} {meta["country"]} official role language'
+            return f"{org} {meta['country']} official role language"
 
     def process_email(self, email: str) -> dict | None:
         email = normalize_email(email)
@@ -547,9 +554,9 @@ class EmailCSVConverter:
         time.sleep(self.delay)
 
         return {
-            "name":     extracted.get("name", meta["guessed_name"]).strip(),
-            "email":    email,
-            "info":     extracted.get("info", meta["info_hint"]).strip(),
+            "name": extracted.get("name", meta["guessed_name"]).strip(),
+            "email": email,
+            "info": extracted.get("info", meta["info_hint"]).strip(),
             "language": extracted.get("language", meta["language"]).strip().lower()[:2],
         }
 
@@ -561,7 +568,9 @@ class EmailCSVConverter:
 
         # ── Read input ──────────────────────────────────────────────────────
         # Accept: single-column CSV (with or without header), or plain text
-        raw_text = input_path.read_text(encoding="utf-8-sig", errors="replace")  # utf-8-sig strips BOM
+        raw_text = input_path.read_text(
+            encoding="utf-8-sig", errors="replace"
+        )  # utf-8-sig strips BOM
         lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
 
         # If first line looks like a header (no @), skip it
@@ -606,6 +615,7 @@ class EmailCSVConverter:
 # CLI entry-point
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert a flat email-list CSV to sample_draft.csv format.",
@@ -619,17 +629,34 @@ Examples:
   python convert_emails_csv.py emails.csv --delay 0.5
 """,
     )
-    parser.add_argument("input",  help="Input CSV file (one email per row)")
-    parser.add_argument("output", nargs="?", default="sample_draft.csv",
-                        help="Output CSV file (default: sample_draft.csv)")
-    parser.add_argument("--model", default="openai/gpt-4o-mini",
-                        help="OpenRouter model ID (default: openai/gpt-4o-mini)")
-    parser.add_argument("--no-search", action="store_true",
-                        help="Skip web search; rely on heuristics + AI knowledge only")
-    parser.add_argument("--personal-only", action="store_true",
-                        help="Only web-search personal (first.last) email addresses")
-    parser.add_argument("--delay", type=float, default=0.3,
-                        help="Seconds between API calls (default: 0.3)")
+    parser.add_argument("input", help="Input CSV file (one email per row)")
+    parser.add_argument(
+        "output",
+        nargs="?",
+        default="sample_draft.csv",
+        help="Output CSV file (default: sample_draft.csv)",
+    )
+    parser.add_argument(
+        "--model",
+        default="openai/gpt-4o-mini",
+        help="OpenRouter model ID (default: openai/gpt-4o-mini)",
+    )
+    parser.add_argument(
+        "--no-search",
+        action="store_true",
+        help="Skip web search; rely on heuristics + AI knowledge only",
+    )
+    parser.add_argument(
+        "--personal-only",
+        action="store_true",
+        help="Only web-search personal (first.last) email addresses",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.3,
+        help="Seconds between API calls (default: 0.3)",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 

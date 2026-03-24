@@ -16,7 +16,12 @@ from typing import Dict, List, Optional
 
 from services.openrouter_service import OpenRouterService
 from services.search_service import SearchService
-from database.db import AsyncSessionLocal, UserCsvRecord, get_all_campaigns, get_campaign_by_name
+from database.db import (
+    AsyncSessionLocal,
+    UserCsvRecord,
+    get_all_campaigns,
+    get_campaign_by_name,
+)
 from sqlalchemy import select, delete
 from config import Config
 from utils.user_settings import get_user_model
@@ -29,6 +34,7 @@ EMAILS_PER_PAGE = 2
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
+
 
 def _back_keyboard():
     builder = InlineKeyboardBuilder()
@@ -45,7 +51,7 @@ async def get_user_records(chat_id: int) -> List[Dict]:
         )
         rows = result.scalars().all()
     return [
-        {'name': r.name, 'email': r.email, 'info': r.info, 'language': r.language}
+        {"name": r.name, "email": r.email, "info": r.info, "language": r.language}
         for r in rows
     ]
 
@@ -59,13 +65,15 @@ async def save_user_records(chat_id: int, records: List[Dict]) -> None:
         )
         # Insert new records
         for rec in records:
-            session.add(UserCsvRecord(
-                chat_id=chat_id,
-                name=rec['name'],
-                email=rec['email'],
-                info=rec['info'],
-                language=rec.get('language', 'en'),
-            ))
+            session.add(
+                UserCsvRecord(
+                    chat_id=chat_id,
+                    name=rec["name"],
+                    email=rec["email"],
+                    info=rec["info"],
+                    language=rec.get("language", "en"),
+                )
+            )
         await session.commit()
 
 
@@ -81,7 +89,7 @@ async def load_records_for_user(chat_id: int) -> tuple[bool, str, List[Dict]]:
         return True, f"✅ {len(user_records)} رکورد شخصی بارگذاری شد", user_records
 
     # Fall back to sample_draft.csv
-    return await validate_and_parse_csv('sample_draft.csv')
+    return await validate_and_parse_csv("sample_draft.csv")
 
 
 async def generate_emails_for_records(
@@ -99,10 +107,10 @@ async def generate_emails_for_records(
     user_model = get_user_model(chat_id) if chat_id is not None else None
 
     for rec in records:
-        name = rec['name']
-        info = rec['info']
-        lang = rec['language']
-        email_addr = rec['email']
+        name = rec["name"]
+        info = rec["info"]
+        lang = rec["language"]
+        email_addr = rec["email"]
 
         async with AsyncSessionLocal() as session:
             profile = await search_service.get_recipient_profile(session, rec)
@@ -121,13 +129,13 @@ Recipient details:
             user_prompt += f"""
 
 Recipient profile from research:
-Bio: {profile.get('bio', '')}
-Gender: {profile.get('gender', 'unknown')}
-Targets: {', '.join(profile.get('targets', []))}
-Mottos: {', '.join(profile.get('mottos', []))}
-Values: {', '.join(profile.get('values', []))}
-Keywords: {', '.join(profile.get('keywords', []))}
-Subjects: {', '.join(profile.get('subjects', []))}
+Bio: {profile.get("bio", "")}
+Gender: {profile.get("gender", "unknown")}
+Targets: {", ".join(profile.get("targets", []))}
+Mottos: {", ".join(profile.get("mottos", []))}
+Values: {", ".join(profile.get("values", []))}
+Keywords: {", ".join(profile.get("keywords", []))}
+Subjects: {", ".join(profile.get("subjects", []))}
 
 Use profile for hyper-personalization. Match language/style. Official clickbait subjects using keywords/mottos."""
 
@@ -136,23 +144,29 @@ Use profile for hyper-personalization. Match language/style. Official clickbait 
 Generate a personalized email using the exact structure from system prompt. Use the sender name exactly in the closing signature, no placeholders."""
 
         try:
-            email_data = await ors.generate_email(system_prompt, user_prompt, model=user_model)
-            subject = email_data.get('subject', 'Subject Missing')
-            body = email_data.get('body', 'Body Missing')
+            email_data = await ors.generate_email(
+                system_prompt, user_prompt, model=user_model
+            )
+            subject = email_data.get("subject", "Subject Missing")
+            body = email_data.get("body", "Body Missing")
         except Exception as e:
             subject = "Error generating"
             body = f"Failed: {str(e)}"
 
-        generated.append({
-            'email_addr': email_addr,
-            'subject': subject,
-            'body': body,
-        })
+        generated.append(
+            {
+                "email_addr": email_addr,
+                "subject": subject,
+                "body": body,
+            }
+        )
 
     return generated
 
 
-def build_draft_page_text(cached_emails: Dict[int, List[Dict]], page: int, total_records: int) -> str:
+def build_draft_page_text(
+    cached_emails: Dict[int, List[Dict]], page: int, total_records: int
+) -> str:
     """Build the message text for a given page of draft emails."""
     total_pages = (total_records + EMAILS_PER_PAGE - 1) // EMAILS_PER_PAGE
     page_emails = cached_emails.get(page, [])
@@ -189,6 +203,7 @@ def build_draft_page_keyboard(page: int, total_records: int):
 # Step 0 — Entry: show preset campaigns (if any)
 # ─────────────────────────────────────────────
 
+
 @router.callback_query(lambda c: c.data == "draft")
 async def start_draft(callback: CallbackQuery, state: FSMContext):
     """Entry point: show preset campaigns if available, otherwise go straight to manual."""
@@ -201,11 +216,13 @@ async def start_draft(callback: CallbackQuery, state: FSMContext):
             "📝 <b>ساخت پیش‌نویس ایمیل</b>\n\n"
             "یک کمپین پیش‌تنظیم انتخاب کنید یا به صورت دستی ادامه دهید:",
             parse_mode="HTML",
-            reply_markup=get_preset_campaigns_keyboard(campaigns, mode="draft")
+            reply_markup=get_preset_campaigns_keyboard(campaigns, mode="draft"),
         )
     else:
         # No presets — go straight to manual flow
-        await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+        await _start_draft_manual(
+            callback.message, state, chat_id=callback.message.chat.id, edit=True
+        )
 
     await callback.answer()
 
@@ -214,7 +231,11 @@ async def start_draft(callback: CallbackQuery, state: FSMContext):
 # Step 0a — User selects a preset campaign
 # ─────────────────────────────────────────────
 
-@router.callback_query(DraftStates.waiting_preset_selection, lambda c: c.data and c.data.startswith("select_campaign:draft:"))
+
+@router.callback_query(
+    DraftStates.waiting_preset_selection,
+    lambda c: c.data and c.data.startswith("select_campaign:draft:"),
+)
 async def draft_select_preset_campaign(callback: CallbackQuery, state: FSMContext):
     """User picked a preset campaign — load its email list and target."""
     campaign_name = callback.data.split(":", 2)[2]
@@ -223,7 +244,7 @@ async def draft_select_preset_campaign(callback: CallbackQuery, state: FSMContex
     if not campaign:
         await callback.message.edit_text(
             "❌ این کمپین دیگر موجود نیست. لطفاً دوباره امتحان کنید.",
-            reply_markup=_back_keyboard()
+            reply_markup=_back_keyboard(),
         )
         await state.clear()
         await callback.answer()
@@ -249,7 +270,7 @@ async def draft_select_preset_campaign(callback: CallbackQuery, state: FSMContex
         "این نام در انتهای ایمیل‌ها قرار می‌گیرد.\n"
         "مثال: علی احمدی یا John Doe",
         parse_mode="HTML",
-        reply_markup=_back_keyboard()
+        reply_markup=_back_keyboard(),
     )
     await callback.answer()
 
@@ -258,28 +279,39 @@ async def draft_select_preset_campaign(callback: CallbackQuery, state: FSMContex
 # Step 0b — User chooses manual entry (no preset)
 # ─────────────────────────────────────────────
 
-@router.callback_query(DraftStates.waiting_preset_selection, lambda c: c.data == "campaign_manual:draft")
+
+@router.callback_query(
+    DraftStates.waiting_preset_selection, lambda c: c.data == "campaign_manual:draft"
+)
 async def draft_choose_manual(callback: CallbackQuery, state: FSMContext):
     """User chose manual entry — load their CSV and ask for context."""
-    await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+    await _start_draft_manual(
+        callback.message, state, chat_id=callback.message.chat.id, edit=True
+    )
     await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "campaign_manual:draft")
 async def draft_choose_manual_fallback(callback: CallbackQuery, state: FSMContext):
     """Fallback for manual entry outside preset selection state."""
-    await _start_draft_manual(callback.message, state, chat_id=callback.message.chat.id, edit=True)
+    await _start_draft_manual(
+        callback.message, state, chat_id=callback.message.chat.id, edit=True
+    )
     await callback.answer()
 
 
-async def _start_draft_manual(message, state: FSMContext, chat_id: int, edit: bool = False):
+async def _start_draft_manual(
+    message, state: FSMContext, chat_id: int, edit: bool = False
+):
     """Load user's CSV (or sample) and prompt for campaign context."""
     is_valid, msg, records = await load_records_for_user(chat_id)
 
     if not is_valid:
         text = f"❌ CSV Error: {msg}"
         if edit:
-            await message.edit_text(text, parse_mode="HTML", reply_markup=_back_keyboard())
+            await message.edit_text(
+                text, parse_mode="HTML", reply_markup=_back_keyboard()
+            )
         else:
             await message.answer(text, parse_mode="HTML", reply_markup=_back_keyboard())
         return
@@ -307,11 +339,14 @@ async def _start_draft_manual(message, state: FSMContext, chat_id: int, edit: bo
 # Step 1 — Receive campaign context (manual mode only), ask sender name
 # ─────────────────────────────────────────────
 
+
 @router.message(DraftStates.waiting_context)
 async def draft_receive_context(message: Message, state: FSMContext):
     context = message.text.strip()
     if not context:
-        await message.answer("❌ لطفاً زمینه کمپین را وارد کنید.", reply_markup=_back_keyboard())
+        await message.answer(
+            "❌ لطفاً زمینه کمپین را وارد کنید.", reply_markup=_back_keyboard()
+        )
         return
 
     await state.update_data(draft_context=context)
@@ -322,7 +357,7 @@ async def draft_receive_context(message: Message, state: FSMContext):
         "این نام در انتهای ایمیل‌ها قرار می‌گیرد.\n"
         "مثال: علی احمدی یا John Doe",
         parse_mode="HTML",
-        reply_markup=_back_keyboard()
+        reply_markup=_back_keyboard(),
     )
 
 
@@ -330,33 +365,33 @@ async def draft_receive_context(message: Message, state: FSMContext):
 # Step 2 — Receive sender name, generate first page
 # ─────────────────────────────────────────────
 
+
 @router.message(DraftStates.waiting_sender_name)
 async def draft_receive_sender_name(message: Message, state: FSMContext):
     sender_name = message.text.strip()
     if len(sender_name) < 2:
         await message.answer(
-            "❌ نام معتبر وارد کنید (حداقل 2 حرف).",
-            reply_markup=_back_keyboard()
+            "❌ نام معتبر وارد کنید (حداقل 2 حرف).", reply_markup=_back_keyboard()
         )
         return
 
     data = await state.get_data()
-    records: List[Dict] = data['draft_records']
-    context: str = data['draft_context']
-    total_records: int = data['draft_total']
+    records: List[Dict] = data["draft_records"]
+    context: str = data["draft_context"]
+    total_records: int = data["draft_total"]
 
     await state.update_data(draft_sender_name=sender_name, draft_cached_emails={})
 
     # Show loading message
     loading_msg = await message.answer(
-        f"⏳ <b>در حال تولید پیش‌نویس‌های صفحه ۱...</b>\n"
-        f"لطفاً صبر کنید.",
-        parse_mode="HTML"
+        "⏳ <b>در حال تولید پیش‌نویس‌های صفحه ۱...</b>\nلطفاً صبر کنید.", parse_mode="HTML"
     )
 
     # Generate first page only
     first_page_records = records[:EMAILS_PER_PAGE]
-    first_page_emails = await generate_emails_for_records(first_page_records, context, sender_name, chat_id=message.chat.id)
+    first_page_emails = await generate_emails_for_records(
+        first_page_records, context, sender_name, chat_id=message.chat.id
+    )
 
     cached_emails = {0: first_page_emails}
     await state.update_data(draft_cached_emails=cached_emails)
@@ -373,6 +408,7 @@ async def draft_receive_sender_name(message: Message, state: FSMContext):
 # ─────────────────────────────────────────────
 # Pagination — navigate between pages (lazy generation)
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(lambda c: c.data and c.data.startswith("draft_page:"))
 async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
@@ -395,7 +431,7 @@ async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(
             "⚠️ Session expired. Please go back and start again.",
             parse_mode="HTML",
-            reply_markup=_back_keyboard()
+            reply_markup=_back_keyboard(),
         )
         return
 
@@ -410,7 +446,7 @@ async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(
             f"⏳ <b>در حال تولید پیش‌نویس‌های صفحه {page + 1}/{total_pages}...</b>\n"
             f"لطفاً صبر کنید.",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await callback.answer("Generating...")
 
@@ -418,7 +454,9 @@ async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
         end = start + EMAILS_PER_PAGE
         page_records = records[start:end]
 
-        page_emails = await generate_emails_for_records(page_records, context, sender_name, chat_id=callback.message.chat.id)
+        page_emails = await generate_emails_for_records(
+            page_records, context, sender_name, chat_id=callback.message.chat.id
+        )
 
         cached_emails[page] = page_emails
         await state.update_data(draft_cached_emails=cached_emails)
@@ -431,13 +469,16 @@ async def navigate_draft_page(callback: CallbackQuery, state: FSMContext):
     if len(page_text) > 4000:
         page_text = page_text[:4000] + "\n\n... (truncated)"
 
-    await callback.message.edit_text(page_text, parse_mode="HTML", reply_markup=keyboard)
+    await callback.message.edit_text(
+        page_text, parse_mode="HTML", reply_markup=keyboard
+    )
 
 
 # ─────────────────────────────────────────────
 # Update CSV — saves records per-user in DB
 # sample_draft.csv is NEVER modified
 # ─────────────────────────────────────────────
+
 
 @router.callback_query(lambda c: c.data == "update_csv")
 async def start_update_csv(callback: CallbackQuery, state: FSMContext):
@@ -466,7 +507,7 @@ async def start_update_csv(callback: CallbackQuery, state: FSMContext):
         "• <b>language</b>: زبان ایمیل — <code>en</code> یا <code>bg</code> (اختیاری، پیش‌فرض: en)\n\n"
         "حداکثر 300 رکورد.\n\n"
         "⚠️ <i>رکوردهای جدید فقط برای شما ذخیره می‌شوند.</i>",
-        parse_mode="HTML"
+        parse_mode="HTML",
     )
     await state.set_state(UpdateCsvStates.waiting_input)
     await callback.answer()
@@ -475,12 +516,14 @@ async def start_update_csv(callback: CallbackQuery, state: FSMContext):
 @router.message(UpdateCsvStates.waiting_input, F.document)
 async def process_update_csv_upload(message: Message, state: FSMContext):
     file = message.document
-    if not file.file_name.endswith('.csv'):
+    if not file.file_name.endswith(".csv"):
         await message.answer("❌ فقط فایل‌های CSV مجاز است.")
         return
 
     file_info = await message.bot.get_file(file.file_id)
-    temp_path = os.path.join(tempfile.gettempdir(), f"update_csv_{message.chat.id}_{file.file_unique_id}.csv")
+    temp_path = os.path.join(
+        tempfile.gettempdir(), f"update_csv_{message.chat.id}_{file.file_unique_id}.csv"
+    )
 
     await message.bot.download_file(file_info.file_path, temp_path)
 
@@ -497,7 +540,7 @@ async def process_update_csv_upload(message: Message, state: FSMContext):
     await message.answer(
         f"✅ لیست شخصی شما به‌روزرسانی شد! {len(records)} رکورد ذخیره شد.\n"
         f"از این پس Draft و Autosend از لیست شخصی شما استفاده می‌کنند.",
-        reply_markup=get_start_keyboard()
+        reply_markup=get_start_keyboard(),
     )
     await state.clear()
 
@@ -512,21 +555,27 @@ async def process_update_csv_text(message: Message, state: FSMContext):
             return
 
         # Parse as CSV without header — columns must match: name, email, info, language
-        df = pd.read_csv(io.StringIO(content), header=None, names=['name', 'email', 'info', 'language'],
-                         skipinitialspace=True)
+        df = pd.read_csv(
+            io.StringIO(content),
+            header=None,
+            names=["name", "email", "info", "language"],
+            skipinitialspace=True,
+        )
         # Strip whitespace from all string columns to handle "name, email, info, lang" spacing
-        for col in ['name', 'email', 'info']:
+        for col in ["name", "email", "info"]:
             df[col] = df[col].astype(str).str.strip()
-        df['language'] = df['language'].fillna('en').astype(str).str.strip().str.lower()
-        df.loc[~df['language'].isin(['en', 'bg']), 'language'] = 'en'
+        df["language"] = df["language"].fillna("en").astype(str).str.strip().str.lower()
+        df.loc[~df["language"].isin(["en", "bg"]), "language"] = "en"
 
         # Create temp file for validation
         temp_buffer = io.StringIO()
         df.to_csv(temp_buffer, index=False)
         temp_buffer.seek(0)
 
-        temp_path = os.path.join(tempfile.gettempdir(), f"text_csv_{message.chat.id}.csv")
-        async with aiofiles.open(temp_path, 'w', encoding='utf-8') as f:
+        temp_path = os.path.join(
+            tempfile.gettempdir(), f"text_csv_{message.chat.id}.csv"
+        )
+        async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
             await f.write(temp_buffer.getvalue())
 
         is_valid, msg, records = await validate_and_parse_csv(temp_path)
@@ -542,7 +591,7 @@ async def process_update_csv_text(message: Message, state: FSMContext):
         await message.answer(
             f"✅ لیست شخصی شما از متن به‌روزرسانی شد! {len(records)} رکورد ذخیره شد.\n"
             f"از این پس Draft و Autosend از لیست شخصی شما استفاده می‌کنند.",
-            reply_markup=get_start_keyboard()
+            reply_markup=get_start_keyboard(),
         )
         await state.clear()
 

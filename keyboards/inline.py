@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import Config
 from typing import List, Dict
@@ -47,7 +47,9 @@ def get_model_keyboard(current_model: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_preset_campaigns_keyboard(campaigns: List[Dict], mode: str) -> InlineKeyboardMarkup:
+def get_preset_campaigns_keyboard(
+    campaigns: List[Dict], mode: str
+) -> InlineKeyboardMarkup:
     """
     Shows a list of preset campaigns for selection during draft/autosend.
     mode = 'draft' or 'autosend'
@@ -58,12 +60,14 @@ def get_preset_campaigns_keyboard(campaigns: List[Dict], mode: str) -> InlineKey
         name = campaign["name"]
         desc = campaign["description"]
         count = len(campaign["email_list"])
+        att_count = len(campaign["attachments"])
         label = f"📌 {name} — {desc} ({count} emails)"
-        builder.button(
-            text=label,
-            callback_data=f"select_campaign:{mode}:{name}"
-        )
-    builder.button(text="✏️ ورود دستی (بدون پیش‌تنظیم)", callback_data=f"campaign_manual:{mode}")
+        if att_count:
+            label += f" 📎{att_count}"
+        builder.button(text=label, callback_data=f"select_campaign:{mode}:{name}")
+    builder.button(
+        text="✏️ ورود دستی (بدون پیش‌تنظیم)", callback_data=f"campaign_manual:{mode}"
+    )
     builder.button(text="🔙 بازگشت به منو", callback_data="main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -97,7 +101,7 @@ def get_source_code_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(
         text="🔗 مخزن GitHub",
-        url="https://github.com/H4mid2019/outreach_campgin_telegram_bot"
+        url="https://github.com/H4mid2019/outreach_campgin_telegram_bot",
     )
     builder.button(text="🔙 بازگشت به منو", callback_data="main_menu")
     builder.adjust(1)

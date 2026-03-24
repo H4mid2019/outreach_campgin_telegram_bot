@@ -1,13 +1,14 @@
 import json
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from ddgs import DDGS
 from tavily import TavilyClient
-from database.db import RecipientInfo, AsyncSessionLocal, engine
+from database.db import RecipientInfo
 from services.openrouter_service import OpenRouterService
 from config import Config
+
 
 class SearchService:
     CACHE_DAYS = 30
@@ -26,9 +27,9 @@ class SearchService:
         try:
             ddg = DDGS()
             results = ddg.text(query, lang=lang, max_results=10)
-            return '\n'.join([r['body'] for r in (results or [])[:5]])
+            return "\n".join([r["body"] for r in (results or [])[:5]])
         except Exception:
-            return ''
+            return ""
 
     def _tavily_search(self, query: str) -> str:
         """
@@ -38,22 +39,26 @@ class SearchService:
         try:
             client = TavilyClient(api_key=self.tavily_api_key)
             results = client.search(query, max_results=5)
-            return '\n'.join([r['content'] for r in results.get('results', [])])
+            return "\n".join([r["content"] for r in results.get("results", [])])
         except Exception:
-            return ''
+            return ""
 
-    async def get_recipient_profile(self, session: AsyncSession, rec: Dict[str, str]) -> Dict[str, Any]:
-        email = rec['email']
-        lang = rec['language']
+    async def get_recipient_profile(
+        self, session: AsyncSession, rec: Dict[str, str]
+    ) -> Dict[str, Any]:
+        email = rec["email"]
+        lang = rec["language"]
 
         # Check cache
         recipient = await session.get(RecipientInfo, email)
-        if recipient and recipient.last_searched > datetime.utcnow() - timedelta(days=self.CACHE_DAYS):
+        if recipient and recipient.last_searched > datetime.utcnow() - timedelta(
+            days=self.CACHE_DAYS
+        ):
             return json.loads(recipient.profile_json) if recipient.profile_json else {}
 
         # Build search query
-        name = rec['name']
-        info = rec['info']
+        name = rec["name"]
+        info = rec["info"]
         query = f'"{name}" politician "{info}" biography targets mottos values keywords election campaign'
 
         # Primary: DDG (fresh instance per call — thread-safe)
@@ -65,9 +70,13 @@ class SearchService:
 
         if not search_text:
             profile = {
-                'bio': '', 'gender': 'unknown',
-                'targets': [], 'mottos': [], 'values': [],
-                'keywords': [], 'subjects': []
+                "bio": "",
+                "gender": "unknown",
+                "targets": [],
+                "mottos": [],
+                "values": [],
+                "keywords": [],
+                "subjects": [],
             }
         else:
             # Use dedicated structured profile extractor (tool/function calling)
@@ -84,7 +93,7 @@ class SearchService:
                 email=email,
                 profile_json=profile_json,
                 language=lang,
-                last_searched=datetime.utcnow()
+                last_searched=datetime.utcnow(),
             )
             session.add(recipient)
         await session.commit()

@@ -23,10 +23,11 @@ async def connect_gmail(callback: CallbackQuery, state: FSMContext):
         "• به https://myaccount.google.com/apppasswords بروید\n"
         "• App Password جدید بسازید (Mail → Other)\n"
         "• فقط 16 کاراکتر را کپی کنید (بدون فاصله)",
-        parse_mode="HTML"
+        parse_mode="HTML",
     )
     await state.set_state(GmailStates.waiting_email)
     await callback.answer()
+
 
 @router.callback_query(lambda c: c.data == "status")
 async def status_callback(callback: CallbackQuery):
@@ -38,7 +39,7 @@ async def status_callback(callback: CallbackQuery):
                 await callback.message.edit_text(
                     f"✅ <b>متصل به:</b> <code>{user.gmail_email}</code>\n\n"
                     "برای قطع: /disconnect_gmail",
-                    parse_mode="HTML"
+                    parse_mode="HTML",
                 )
             except TelegramBadRequest as e:
                 if "message is not modified" not in str(e):
@@ -46,10 +47,11 @@ async def status_callback(callback: CallbackQuery):
         else:
             try:
                 from keyboards.inline import get_gmail_keyboard
+
                 await callback.message.edit_text(
                     "❌ <b>Gmail متصل نیست.</b>",
                     parse_mode="HTML",
-                    reply_markup=get_gmail_keyboard()
+                    reply_markup=get_gmail_keyboard(),
                 )
             except TelegramBadRequest as e:
                 if "message is not modified" not in str(e):
@@ -58,6 +60,7 @@ async def status_callback(callback: CallbackQuery):
         await callback.answer()
     except TelegramBadRequest:
         pass
+
 
 @router.callback_query(lambda c: c.data == "disconnect_gmail")
 async def disconnect_callback(callback: CallbackQuery):
@@ -68,31 +71,38 @@ async def disconnect_callback(callback: CallbackQuery):
             user.gmail_tokens = None
             user.gmail_email = None
             await session.commit()
-            await callback.message.edit_text("✅ اتصال قطع شد.", reply_markup=get_start_keyboard())
+            await callback.message.edit_text(
+                "✅ اتصال قطع شد.", reply_markup=get_start_keyboard()
+            )
         else:
-            await callback.message.edit_text("❌ خطا.", reply_markup=get_start_keyboard())
+            await callback.message.edit_text(
+                "❌ خطا.", reply_markup=get_start_keyboard()
+            )
     await callback.answer()
+
 
 @router.callback_query(lambda c: c.data == "help")
 async def help_callback(callback: CallbackQuery):
     from handlers.common import PERSIAN_WELCOME
+
     await callback.message.edit_text(PERSIAN_WELCOME, parse_mode="HTML")
     await callback.answer()
+
 
 @router.message(GmailStates.waiting_email)
 async def gmail_email_input(message: Message, state: FSMContext):
     email = message.text.strip().lower()
-    if '@gmail.com' not in email or len(email) < 10:
+    if "@gmail.com" not in email or len(email) < 10:
         await message.answer("❌ ایمیل Gmail معتبر وارد کنید (مثال: user@gmail.com)")
         return
-    
+
     await state.update_data(gmail_email=email)
     await message.answer(
-        "🔑 <b>رمز اپلیکیشن را وارد کنید:</b>\n"
-        "فقط 16 کاراکتر (بدون فاصله یا توضیح)",
-        parse_mode="HTML"
+        "🔑 <b>رمز اپلیکیشن را وارد کنید:</b>\nفقط 16 کاراکتر (بدون فاصله یا توضیح)",
+        parse_mode="HTML",
     )
     await state.set_state(GmailStates.waiting_password)
+
 
 @router.message(GmailStates.waiting_password)
 async def gmail_password_input(message: Message, state: FSMContext):
@@ -100,13 +110,13 @@ async def gmail_password_input(message: Message, state: FSMContext):
     if len(app_password) != 16 or not app_password.isalnum():
         await message.answer("❌ رمز اپلیکیشن 16 کاراکتر الفانومریک است.")
         return
-    
+
     data = await state.get_data()
-    gmail_email = data['gmail_email']
-    
+    gmail_email = data["gmail_email"]
+
     crypto = CryptoManager()
     encrypted_password = crypto.encrypt(app_password)
-    
+
     chat_id = message.chat.id
     async with AsyncSessionLocal() as session:
         user = await session.get(User, chat_id)
@@ -116,13 +126,13 @@ async def gmail_password_input(message: Message, state: FSMContext):
         user.gmail_tokens = encrypted_password
         user.gmail_email = gmail_email
         await session.commit()
-    
+
     await message.answer(
         f"✅ <b>اتصال Gmail موفق!</b>\n\n"
         f"📧 <code>{gmail_email}</code>\n"
         f"🔒 رمز اپلیکیشن ذخیره شد (رمز نگاری شده)\n\n"
         f"حالا می‌توانید ایمیل ارسال کنید! /status",
         parse_mode="HTML",
-        reply_markup=get_start_keyboard()
+        reply_markup=get_start_keyboard(),
     )
     await state.clear()

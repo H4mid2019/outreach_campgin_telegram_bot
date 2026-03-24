@@ -40,12 +40,18 @@ for model, tokens in models.items():
         output_cost = (tokens["output"] / 1000000.0) * output_cost_per_m
         total_cost = input_cost + output_cost
         print(f"\n{model}")
-        print(f"Tokens: {tokens['input']} in / {tokens['output']} out / {tokens['total']} total")
+        print(
+            f"Tokens: {tokens['input']} in / {tokens['output']} out / {tokens['total']} total"
+        )
         print(f"Prices: input ${input_cost_per_m}/1M, output ${output_cost_per_m}/1M")
-        print(f"Cost: ${total_cost:.6f} (input: ${input_cost:.6f}, output: ${output_cost:.6f})")
+        print(
+            f"Cost: ${total_cost:.6f} (input: ${input_cost:.6f}, output: ${output_cost:.6f})"
+        )
         print(f"Cost for 1K email: ${(total_cost * 1000):.6f}")
         print(f"Cost for 40K emails: ${(total_cost * 40000):.2f}")
     else:
         print(f"\n{model}")
-        print(f"Tokens: {tokens['input']} in / {tokens['output']} out / {tokens['total']} total")
+        print(
+            f"Tokens: {tokens['input']} in / {tokens['output']} out / {tokens['total']} total"
+        )
         print("Cost: Price not available")

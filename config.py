@@ -3,37 +3,48 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Config:
-    BOT_TOKEN: str = os.getenv('BOT_TOKEN')
-    OPENROUTER_API_KEY: str = os.getenv('OPENROUTER_API_KEY')
-    ENCRYPTION_KEY: str = os.getenv('ENCRYPTION_KEY')
-    TAVILY_API_KEY: str = os.getenv('TAVILY_API_KEY')
-    
-    OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
-    OPENROUTER_MODEL: str = os.getenv('OPENROUTER_MODEL', 'google/gemini-2.5-flash-lite')      # 0.84s · ~$6/40K emails · 9x faster than Grok
-    FALLBACK_MODEL: str = os.getenv('FALLBACK_MODEL', 'meta-llama/llama-4-scout')       # 2.28s · ~$6.80/40K emails
+    BOT_TOKEN: str = os.getenv("BOT_TOKEN")
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY")
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY")
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
+
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_MODEL: str = os.getenv(
+        "OPENROUTER_MODEL", "google/gemini-2.5-flash-lite"
+    )  # 0.84s · ~$6/40K emails · 9x faster than Grok
+    FALLBACK_MODEL: str = os.getenv(
+        "FALLBACK_MODEL", "meta-llama/llama-4-scout"
+    )  # 2.28s · ~$6.80/40K emails
 
     # Special key for model selection access
-    MODEL_ACCESS_KEY: str = os.getenv('MODEL_ACCESS_KEY', 'BlackCatsMeow')
+    MODEL_ACCESS_KEY: str = os.getenv("MODEL_ACCESS_KEY", "BlackCatsMeow")
 
     # Key required to create/update/delete preset campaigns
-    CAMPAIGN_ACCESS_KEY: str = os.getenv('CAMPAIGN_ACCESS_KEY', 'CampaignAdmin2024')
+    CAMPAIGN_ACCESS_KEY: str = os.getenv("CAMPAIGN_ACCESS_KEY", "CampaignAdmin2024")
 
     AVAILABLE_MODELS: list = os.getenv(
-        'AVAILABLE_MODELS',
+        "AVAILABLE_MODELS",
         # Recommended (fast + affordable)
-        'meta-llama/llama-4-scout,'           # 0.84s  ~$6/40K   ← DEFAULT
-        'google/gemini-2.5-flash-lite,'       # 2.28s  ~$6.80/40K ← FALLBACK
-        'meta-llama/llama-4-maverick,'        # ~$11/40K, higher quality
+        "meta-llama/llama-4-scout,"  # 0.84s  ~$6/40K   ← DEFAULT
+        "google/gemini-2.5-flash-lite,"  # 2.28s  ~$6.80/40K ← FALLBACK
+        "meta-llama/llama-4-maverick,"  # ~$11/40K, higher quality
         # Premium
-        'x-ai/grok-4.1-fast,'                 # 7.44s  ~$10/40K
-        'anthropic/claude-haiku-4.5,'         # fast + great quality
-        'anthropic/claude-sonnet-4.5,'        # top quality
+        "x-ai/grok-4.1-fast,"  # 7.44s  ~$10/40K
+        "anthropic/claude-haiku-4.5,"  # fast + great quality
+        "anthropic/claude-sonnet-4.5,"  # top quality
         # Free (rate-limited, not for production)
-        'meta-llama/llama-3.3-70b-instruct:free,'
-        'nvidia/nemotron-3-nano-30b-a3b:free'
-    ).split(',')
-    
+        "meta-llama/llama-3.3-70b-instruct:free,"
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+    ).split(",")
+
+    # Campaign attachment limits
+    MAX_CAMPAIGN_ATTACHMENTS = 5
+    MAX_ATTACHMENT_SIZE_MB = 10
+    MAX_TOTAL_ATTACHMENTS_MB = 20
+    CAMPAIGN_ATTACHMENTS_PATH = "storage/campaign_attachments"
+
     @staticmethod
     def get_system_prompt(lang: str) -> str:
         prompt_template = """You are a senior diplomatic correspondence writer specializing in formal communication with heads of state, ministers, MPs, MEPs, and senior politicians worldwide.

@@ -75,6 +75,9 @@ Requires the `CAMPAIGN_ACCESS_KEY` from `.env`.
    John Doe,john@eu.com,MEP,en
    Jane Smith,jane@bg.com,Bulgaria,bg
    ```
+5. **Optional attachments** — upload multiple files (max 5, 20MB total), `/skip` or `/done`.
+
+**Attachments are sent with every email in Autosend only.**
 
 ### Deleting Campaigns (Admin)
 Main menu → **📋 مدیریت کمپین‌ها** → enter key → **🗑 حذف کمپین** → select → confirm.

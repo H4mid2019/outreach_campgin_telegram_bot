@@ -1,12 +1,21 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, FSInputFile
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from keyboards.inline import get_start_keyboard, get_gmail_keyboard, get_disconnect_keyboard, get_model_keyboard, get_source_code_keyboard
+from keyboards.inline import (
+    get_start_keyboard,
+    get_gmail_keyboard,
+    get_disconnect_keyboard,
+    get_model_keyboard,
+    get_source_code_keyboard,
+)
 from database.db import AsyncSessionLocal, User
 from utils.user_settings import (
-    get_user_model, set_user_model, is_authorized_for_model_selection,
-    authorize_user, validate_access_key
+    get_user_model,
+    set_user_model,
+    is_authorized_for_model_selection,
+    authorize_user,
+    validate_access_key,
 )
 from states.states import AccessKeyStates
 from config import Config
@@ -33,11 +42,15 @@ PERSIAN_WELCOME = """🤖 <b>به ربات ارسال ایمیل سیاسی هو
 
 /start منو | /help راهنما | /status وضعیت Gmail | /campaigns لیست کمپین‌ها"""
 
+
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     # Clear any lingering state (e.g. access key flow) when user hits /start
     await state.clear()
-    await message.answer(PERSIAN_WELCOME, parse_mode="HTML", reply_markup=get_start_keyboard())
+    await message.answer(
+        PERSIAN_WELCOME, parse_mode="HTML", reply_markup=get_start_keyboard()
+    )
+
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
@@ -89,6 +102,7 @@ John Doe,john@parliament.bg,MP GERB,en
 /help — این راهنما"""
     await message.answer(help_text, parse_mode="HTML")
 
+
 @router.message(Command("status"))
 async def cmd_status(message: Message):
     chat_id = message.chat.id
@@ -102,6 +116,7 @@ async def cmd_status(message: Message):
             markup = get_gmail_keyboard()
         await message.answer(status, parse_mode="HTML", reply_markup=markup)
 
+
 @router.message(Command("disconnect_gmail"))
 async def cmd_disconnect(message: Message):
     chat_id = message.chat.id
@@ -111,9 +126,14 @@ async def cmd_disconnect(message: Message):
             user.gmail_tokens = None
             user.gmail_email = None
             await session.commit()
-            await message.answer("✅ اتصال Gmail قطع شد.", reply_markup=get_start_keyboard())
+            await message.answer(
+                "✅ اتصال Gmail قطع شد.", reply_markup=get_start_keyboard()
+            )
         else:
-            await message.answer("❌ کاربری یافت نشد.", reply_markup=get_start_keyboard())
+            await message.answer(
+                "❌ کاربری یافت نشد.", reply_markup=get_start_keyboard()
+            )
+
 
 @router.callback_query(F.data == "source_code")
 async def show_source_code(callback: CallbackQuery):
@@ -125,7 +145,9 @@ async def show_source_code(callback: CallbackQuery):
         "می‌توانید از کد استفاده کنید، آن را بهبود دهید یا در توسعه‌اش مشارکت کنید.\n\n"
         "📌 <b>مخزن:</b> <code>H4mid2019/outreach_campgin_telegram_bot</code>"
     )
-    await callback.message.edit_text(source_text, parse_mode="HTML", reply_markup=get_source_code_keyboard())
+    await callback.message.edit_text(
+        source_text, parse_mode="HTML", reply_markup=get_source_code_keyboard()
+    )
     await callback.answer()
 
 
@@ -133,7 +155,9 @@ async def show_source_code(callback: CallbackQuery):
 async def back_to_menu(callback: CallbackQuery, state: FSMContext):
     # Also clear any lingering state when returning to main menu
     await state.clear()
-    await callback.message.edit_text(PERSIAN_WELCOME, parse_mode="HTML", reply_markup=get_start_keyboard())
+    await callback.message.edit_text(
+        PERSIAN_WELCOME, parse_mode="HTML", reply_markup=get_start_keyboard()
+    )
     await callback.answer()
 
 
@@ -152,7 +176,7 @@ async def show_model_selection(callback: CallbackQuery, state: FSMContext):
             "برای تغییر مدل AI نیاز به کلید دسترسی دارید.\n"
             "لطفاً کلید دسترسی خود را وارد کنید:\n\n"
             "<i>برای لغو، /start را بزنید</i>",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         await callback.answer("🔐 نیاز به کلید دسترسی", show_alert=True)
         return
@@ -162,7 +186,7 @@ async def show_model_selection(callback: CallbackQuery, state: FSMContext):
         f"مدل فعلی: <code>{current_model}</code>\n\n"
         "یکی از مدل‌های زیر را انتخاب کنید:",
         parse_mode="HTML",
-        reply_markup=get_model_keyboard(current_model)
+        reply_markup=get_model_keyboard(current_model),
     )
     await callback.answer()
 
@@ -187,7 +211,7 @@ async def handle_set_model(callback: CallbackQuery):
         f"✅ <b>مدل انتخاب شد:</b> <code>{chosen_model}</code>\n\n"
         "از این مدل برای تولید ایمیل‌های بعدی استفاده خواهد شد.",
         parse_mode="HTML",
-        reply_markup=get_model_keyboard(chosen_model)
+        reply_markup=get_model_keyboard(chosen_model),
     )
     await callback.answer(f"✅ مدل تغییر یافت: {chosen_model}")
 
@@ -207,7 +231,7 @@ async def handle_access_key_input(message: Message, state: FSMContext):
         await message.answer(
             "✅ <b>کلید دسترسی تایید شد!</b>\n\n"
             "شما اکنون می‌توانید مدل AI را تغییر دهید.",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
         # Show model selection immediately
         await message.answer(
@@ -215,7 +239,7 @@ async def handle_access_key_input(message: Message, state: FSMContext):
             f"مدل فعلی: <code>{current_model}</code>\n\n"
             "یکی از مدل‌های زیر را انتخاب کنید:",
             parse_mode="HTML",
-            reply_markup=get_model_keyboard(current_model)
+            reply_markup=get_model_keyboard(current_model),
         )
     else:
         await state.clear()
@@ -223,5 +247,5 @@ async def handle_access_key_input(message: Message, state: FSMContext):
             "❌ <b>کلید دسترسی نامعتبر است.</b>\n\n"
             "دسترسی شما رد شد. برای تلاش مجدد روی 'تغییر مدل AI' کلیک کنید.",
             parse_mode="HTML",
-            reply_markup=get_start_keyboard()
+            reply_markup=get_start_keyboard(),
         )

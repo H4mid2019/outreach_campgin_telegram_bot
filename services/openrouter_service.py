@@ -18,16 +18,16 @@ _EMAIL_TOOL = {
             "properties": {
                 "subject": {
                     "type": "string",
-                    "description": "The email subject line — compelling, relevant to the recipient."
+                    "description": "The email subject line — compelling, relevant to the recipient.",
                 },
                 "body": {
                     "type": "string",
-                    "description": "Full email body text, formatted as a plain-text formal letter."
-                }
+                    "description": "Full email body text, formatted as a plain-text formal letter.",
+                },
             },
-            "required": ["subject", "body"]
-        }
-    }
+            "required": ["subject", "body"],
+        },
+    },
 }
 
 _PROFILE_TOOL = {
@@ -38,26 +38,61 @@ _PROFILE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "bio":      {"type": "string", "description": "200-word biography summary"},
-                "gender":   {"type": "string", "enum": ["male", "female", "unknown"]},
-                "targets":  {"type": "array",  "items": {"type": "string"}, "description": "Political targets/goals"},
-                "mottos":   {"type": "array",  "items": {"type": "string"}, "description": "Election mottos and slogans"},
-                "values":   {"type": "array",  "items": {"type": "string"}, "description": "Core values"},
-                "keywords": {"type": "array",  "items": {"type": "string"}, "description": "Top 10 keywords"},
-                "subjects": {"type": "array",  "items": {"type": "string"}, "description": "Repetitive speech topics/subjects"}
+                "bio": {"type": "string", "description": "200-word biography summary"},
+                "gender": {"type": "string", "enum": ["male", "female", "unknown"]},
+                "targets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Political targets/goals",
+                },
+                "mottos": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Election mottos and slogans",
+                },
+                "values": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Core values",
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Top 10 keywords",
+                },
+                "subjects": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Repetitive speech topics/subjects",
+                },
             },
-            "required": ["bio", "gender", "targets", "mottos", "values", "keywords", "subjects"]
-        }
-    }
+            "required": [
+                "bio",
+                "gender",
+                "targets",
+                "mottos",
+                "values",
+                "keywords",
+                "subjects",
+            ],
+        },
+    },
 }
 
 # ── Output validators ─────────────────────────────────────────────────────────
 
 # Substrings that indicate the model returned a template instead of real content
 _PLACEHOLDER_PATTERNS = (
-    '[', 'insert', 'your name', 'your email',
-    'subject here', 'body here', 'write here', 'add here',
+    "[",
+    "insert",
+    "your name",
+    "your email",
+    "subject here",
+    "body here",
+    "write here",
+    "add here",
 )
+
 
 def _is_valid_email(subject: str, body: str) -> bool:
     """
@@ -79,29 +114,35 @@ def _is_valid_email(subject: str, body: str) -> bool:
 
 # ── Fallback text parsers (used when a model doesn't support tool_choice) ─────
 
+
 def _parse_email_from_text(content: str) -> Dict[str, str]:
     """Best-effort parse of 'Subject: ...\n\nBody: ...' style text."""
-    if 'Subject:' in content and 'Body:' in content:
-        subject = content.split('Subject:')[1].split('\n\nBody:')[0].strip()
-        body = content.split('Body:')[1].strip()
+    if "Subject:" in content and "Body:" in content:
+        subject = content.split("Subject:")[1].split("\n\nBody:")[0].strip()
+        body = content.split("Body:")[1].strip()
         return {"subject": subject, "body": body}
     # Handle Bulgarian / other locale headers
-    lines = content.split('\n')
+    lines = content.split("\n")
     if lines:
         first = lines[0].strip()
-        if ':' in first and len(first) < 200:  # looks like a header line
-            subject = first.split(':', 1)[1].strip()
-            body = '\n'.join(lines[1:]).strip()
+        if ":" in first and len(first) < 200:  # looks like a header line
+            subject = first.split(":", 1)[1].strip()
+            body = "\n".join(lines[1:]).strip()
         else:
             subject = first or "Formal Request"
-            body = '\n'.join(lines[1:]).strip()
+            body = "\n".join(lines[1:]).strip()
         return {"subject": subject, "body": body}
     return {"subject": "Formal Request", "body": content}
 
 
 _EMPTY_PROFILE: Dict[str, Any] = {
-    "bio": "", "gender": "unknown",
-    "targets": [], "mottos": [], "values": [], "keywords": [], "subjects": []
+    "bio": "",
+    "gender": "unknown",
+    "targets": [],
+    "mottos": [],
+    "values": [],
+    "keywords": [],
+    "subjects": [],
 }
 
 
@@ -179,7 +220,7 @@ class OpenRouterService:
         active_model = model or self.model
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_prompt},
+            {"role": "user", "content": user_prompt},
         ]
 
         # ① Primary model — structured tool call
@@ -189,7 +230,9 @@ class OpenRouterService:
             if _is_valid_email(subj, body):
                 logger.debug(f"Email generated via tool call on {active_model}")
                 return result
-            logger.warning(f"Tool call on {active_model} returned invalid output (subject={repr(subj[:40])}, body_len={len(body)})")
+            logger.warning(
+                f"Tool call on {active_model} returned invalid output (subject={repr(subj[:40])}, body_len={len(body)})"
+            )
 
         # ② Primary model — plain text fallback
         try:
@@ -207,16 +250,22 @@ class OpenRouterService:
         if result:
             subj, body = result.get("subject", ""), result.get("body", "")
             if _is_valid_email(subj, body):
-                logger.debug(f"Email generated via tool call on fallback {self.fallback_model}")
+                logger.debug(
+                    f"Email generated via tool call on fallback {self.fallback_model}"
+                )
                 return result
-            logger.warning(f"Tool call on fallback {self.fallback_model} returned invalid output")
+            logger.warning(
+                f"Tool call on fallback {self.fallback_model} returned invalid output"
+            )
 
         # ④ Fallback model — plain text
         try:
             content = await self._call_plain(self.fallback_model, messages)
             parsed = _parse_email_from_text(content)
             if _is_valid_email(parsed["subject"], parsed["body"]):
-                logger.debug(f"Email generated via text parse on fallback {self.fallback_model}")
+                logger.debug(
+                    f"Email generated via text parse on fallback {self.fallback_model}"
+                )
                 return parsed
         except Exception as e:
             logger.warning(f"Plain call on fallback {self.fallback_model} failed: {e}")
@@ -245,11 +294,13 @@ Search text:
 {search_text[:4000]}"""
         messages = [
             {"role": "system", "content": system},
-            {"role": "user",   "content": user},
+            {"role": "user", "content": user},
         ]
 
         # ① Primary — structured
-        result = await self._call_with_tool(active_model, messages, _PROFILE_TOOL, max_tokens=800)
+        result = await self._call_with_tool(
+            active_model, messages, _PROFILE_TOOL, max_tokens=800
+        )
         if result:
             logger.debug(f"Profile extracted via tool call on {active_model}")
             return {**_EMPTY_PROFILE, **result}  # fill missing keys with defaults
@@ -258,7 +309,13 @@ Search text:
         try:
             content = await self._call_plain(active_model, messages, max_tokens=800)
             # The model may return raw JSON with or without markdown fencing
-            clean = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            clean = (
+                content.strip()
+                .removeprefix("```json")
+                .removeprefix("```")
+                .removesuffix("```")
+                .strip()
+            )
             profile = json.loads(clean)
             logger.debug(f"Profile extracted via JSON parse on {active_model}")
             return {**_EMPTY_PROFILE, **profile}
@@ -266,14 +323,24 @@ Search text:
             logger.warning(f"Profile plain parse failed on {active_model}: {e}")
 
         # ③ Fallback — structured
-        result = await self._call_with_tool(self.fallback_model, messages, _PROFILE_TOOL, max_tokens=800)
+        result = await self._call_with_tool(
+            self.fallback_model, messages, _PROFILE_TOOL, max_tokens=800
+        )
         if result:
             return {**_EMPTY_PROFILE, **result}
 
         # ④ Fallback — JSON from plain text
         try:
-            content = await self._call_plain(self.fallback_model, messages, max_tokens=800)
-            clean = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            content = await self._call_plain(
+                self.fallback_model, messages, max_tokens=800
+            )
+            clean = (
+                content.strip()
+                .removeprefix("```json")
+                .removeprefix("```")
+                .removesuffix("```")
+                .strip()
+            )
             return {**_EMPTY_PROFILE, **json.loads(clean)}
         except Exception:
             pass

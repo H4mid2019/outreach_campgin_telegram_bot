@@ -21,6 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import openai
@@ -36,7 +37,7 @@ MODELS = [
     # ("x-ai/grok-4.1-fast",                          "Grok 4.1 Fast          [CURRENT - paid ~$10/40K emails]"),
     # ("meta-llama/llama-4-scout",                     "Llama 4 Scout          [RECOMMENDED - paid ~$6/40K emails]"),
     # ("google/gemini-2.5-flash-lite",                 "Gemini 2.5 Flash Lite  [BUDGET - paid ~$6.80/40K emails]"),
-    ("minimax/minimax-m2.5",       "Minimax M2.5            [Free tier, not for production]"),
+    ("minimax/minimax-m2.5", "Minimax M2.5            [Free tier, not for production]"),
     # ("meta-llama/llama-3.3-70b-instruct",       "Llama 3.3 70B          [BUDGET -paid ~$6.80/40K emails]"),
     # ("openai/gpt-4o",                            "GPT-4o                 [Premium fallback, paid]"),
     # ("meta-llama/llama-4-maverick",             "Llama 4 Maverick       [Higher quality, paid ~$11/40K emails]"),
@@ -48,6 +49,7 @@ MODELS = [
 # SYSTEM PROMPT — imported directly from Config so it stays in sync
 # ─────────────────────────────────────────────
 from config import Config
+
 
 def get_system_prompt(lang: str) -> str:
     return Config.get_system_prompt(lang)
@@ -65,10 +67,12 @@ def build_user_prompt() -> str:
     )
 
     # ── Recipient ─────────────────────────────────
-    name        = "Ted Cruz"
-    info        = ("U.S. Senator (Texas), Member of Senate Foreign Relations Committee, "
-                   "Republican Party, known for hawkish Iran policy and pro-sanctions stance")
-    lang        = "en"
+    name = "Ted Cruz"
+    info = (
+        "U.S. Senator (Texas), Member of Senate Foreign Relations Committee, "
+        "Republican Party, known for hawkish Iran policy and pro-sanctions stance"
+    )
+    lang = "en"
     sender_name = "Alexander Mitchell"
 
     # ── Profile (simulates Tavily research result) ─
@@ -80,12 +84,30 @@ def build_user_prompt() -> str:
             "the Iranian regime a state sponsor of terrorism."
         ),
         "gender": "male",
-        "targets": ["Iran regime accountability", "democratic transition", "US national security"],
-        "mottos":  ["Stand with the Iranian people", "No nuclear deal with terrorists", "Freedom over appeasement"],
-        "values":  ["rule of law", "freedom", "democracy", "American leadership"],
-        "keywords": ["Iran sanctions", "regime change", "human rights", "Crown Prince Pahlavi",
-                     "state sponsor of terrorism", "freedom fighters"],
-        "subjects": ["Iran nuclear deal opposition", "Iranian opposition support", "sanctions enforcement"],
+        "targets": [
+            "Iran regime accountability",
+            "democratic transition",
+            "US national security",
+        ],
+        "mottos": [
+            "Stand with the Iranian people",
+            "No nuclear deal with terrorists",
+            "Freedom over appeasement",
+        ],
+        "values": ["rule of law", "freedom", "democracy", "American leadership"],
+        "keywords": [
+            "Iran sanctions",
+            "regime change",
+            "human rights",
+            "Crown Prince Pahlavi",
+            "state sponsor of terrorism",
+            "freedom fighters",
+        ],
+        "subjects": [
+            "Iran nuclear deal opposition",
+            "Iranian opposition support",
+            "sanctions enforcement",
+        ],
     }
 
     # ── Build prompt (exact copy of EmailGenerator logic) ─
@@ -100,13 +122,13 @@ Recipient details:
     user_prompt += f"""
 
 Recipient profile from research:
-Bio: {profile.get('bio', '')}
-Gender: {profile.get('gender', 'unknown')}
-Targets: {', '.join(profile.get('targets', []))}
-Mottos: {', '.join(profile.get('mottos', []))}
-Values: {', '.join(profile.get('values', []))}
-Keywords: {', '.join(profile.get('keywords', []))}
-Subjects: {', '.join(profile.get('subjects', []))}
+Bio: {profile.get("bio", "")}
+Gender: {profile.get("gender", "unknown")}
+Targets: {", ".join(profile.get("targets", []))}
+Mottos: {", ".join(profile.get("mottos", []))}
+Values: {", ".join(profile.get("values", []))}
+Keywords: {", ".join(profile.get("keywords", []))}
+Subjects: {", ".join(profile.get("subjects", []))}
 
 Use profile for hyper-personalization. Match language/style. Official clickbait subjects using keywords/mottos."""
 
@@ -142,7 +164,9 @@ def parse_response(content: str) -> dict:
 # ─────────────────────────────────────────────
 # BENCHMARK A SINGLE MODEL
 # ─────────────────────────────────────────────
-async def benchmark_model(client: openai.AsyncOpenAI, model_id: str, system_prompt: str, user_prompt: str) -> dict:
+async def benchmark_model(
+    client: openai.AsyncOpenAI, model_id: str, system_prompt: str, user_prompt: str
+) -> dict:
     start = time.perf_counter()
     error = None
     result = None
@@ -152,7 +176,7 @@ async def benchmark_model(client: openai.AsyncOpenAI, model_id: str, system_prom
             model=model_id,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": user_prompt},
+                {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
             max_tokens=500,
@@ -164,10 +188,10 @@ async def benchmark_model(client: openai.AsyncOpenAI, model_id: str, system_prom
         return {
             "elapsed": elapsed,
             "subject": result["subject"],
-            "body":    result["body"],
-            "prompt_tokens":     usage.prompt_tokens     if usage else "n/a",
+            "body": result["body"],
+            "prompt_tokens": usage.prompt_tokens if usage else "n/a",
             "completion_tokens": usage.completion_tokens if usage else "n/a",
-            "total_tokens":      usage.total_tokens      if usage else "n/a",
+            "total_tokens": usage.total_tokens if usage else "n/a",
             "raw": content,
             "error": None,
         }
@@ -176,10 +200,10 @@ async def benchmark_model(client: openai.AsyncOpenAI, model_id: str, system_prom
         return {
             "elapsed": elapsed,
             "subject": "",
-            "body":    "",
-            "prompt_tokens":     "n/a",
+            "body": "",
+            "prompt_tokens": "n/a",
             "completion_tokens": "n/a",
-            "total_tokens":      "n/a",
+            "total_tokens": "n/a",
             "raw": "",
             "error": str(e),
         }
@@ -199,11 +223,13 @@ async def main():
     )
 
     system_prompt = get_system_prompt("en")
-    user_prompt   = build_user_prompt()
+    user_prompt = build_user_prompt()
 
     print("\n" + "=" * 72)
     print("  OPENROUTER MODEL BENCHMARK — Political Outreach Email")
-    print("  Campaign: Support Iranian Revolution / Recognize Crown Prince Reza Pahlavi")
+    print(
+        "  Campaign: Support Iranian Revolution / Recognize Crown Prince Reza Pahlavi"
+    )
     print("  Recipient: Senator Ted Cruz  |  Language: English")
     print("=" * 72)
     print(f"  Testing {len(MODELS)} models sequentially...\n")
@@ -214,7 +240,7 @@ async def main():
         print(f"  ⏳  {label.split('[')[0].strip()} ...", end="", flush=True)
         data = await benchmark_model(client, model_id, system_prompt, user_prompt)
         results.append((model_id, label, data))
-        status = f"✅  {data['elapsed']:.2f}s" if not data["error"] else f"❌  FAILED"
+        status = f"✅  {data['elapsed']:.2f}s" if not data["error"] else "❌  FAILED"
         print(f"\r  {status}  {label}")
 
     # ── Detailed output ────────────────────────────────────────────────────────
@@ -226,13 +252,15 @@ async def main():
         print(f"\n{'─' * 72}")
         print(f"  MODEL : {label}")
         print(f"  ID    : {model_id}")
-        print(f"  Time  : {data['elapsed']:.2f}s   |   Tokens: {data['prompt_tokens']} in / {data['completion_tokens']} out / {data['total_tokens']} total")
+        print(
+            f"  Time  : {data['elapsed']:.2f}s   |   Tokens: {data['prompt_tokens']} in / {data['completion_tokens']} out / {data['total_tokens']} total"
+        )
         print(f"{'─' * 72}")
         if data["error"]:
             print(f"  ❌  ERROR: {data['error']}")
         else:
             print(f"  SUBJECT : {data['subject']}\n")
-            print(f"  BODY:\n")
+            print("  BODY:\n")
             for line in data["body"].split("\n"):
                 print(f"    {line}")
 
@@ -241,12 +269,14 @@ async def main():
     print("  PERFORMANCE SUMMARY")
     print("─" * 72)
     print(f"  {'Model':<45} {'Time':>7}  {'In':>6}  {'Out':>6}  Status")
-    print(f"  {'─'*45} {'─'*7}  {'─'*6}  {'─'*6}  {'─'*6}")
+    print(f"  {'─' * 45} {'─' * 7}  {'─' * 6}  {'─' * 6}  {'─' * 6}")
     for model_id, label, data in results:
         short_label = label.split("[")[0].strip()
         status = "✅ OK" if not data["error"] else "❌ FAIL"
         t = f"{data['elapsed']:.2f}s"
-        print(f"  {short_label:<45} {t:>7}  {str(data['prompt_tokens']):>6}  {str(data['completion_tokens']):>6}  {status}")
+        print(
+            f"  {short_label:<45} {t:>7}  {str(data['prompt_tokens']):>6}  {str(data['completion_tokens']):>6}  {status}"
+        )
     print("═" * 72 + "\n")
 
 

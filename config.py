@@ -29,7 +29,7 @@ class Config:
         # Recommended (fast + affordable)
         "meta-llama/llama-4-scout,"  # 0.84s  ~$6/40K   ← DEFAULT
         "google/gemini-2.5-flash-lite,"  # 2.28s  ~$6.80/40K ← FALLBACK
-        "google/gemini-3.1-flash-lite",
+        "google/gemini-3.1-flash-lite,"
         "meta-llama/llama-4-maverick,"  # ~$11/40K, higher quality
         # Premium
         "x-ai/grok-4.1-fast,"  # 7.44s  ~$10/40K
